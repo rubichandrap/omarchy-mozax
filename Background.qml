@@ -31,7 +31,7 @@ Item {
 
   // Mosaic effect: on, the wallpaper is drawn into a small layer texture and
   // scaled back up without smoothing, so the desktop shows retro blocks.
-  property bool mosaic: false
+  property bool mosaic: true
   property int mosaicBlock: 8
 
   // Grid overlay drawn over the wallpaper, separating tiles like grout.
@@ -39,7 +39,7 @@ Item {
   property int gridSize: 16        // line pitch in logical pixels (fine grid)
   property int gridGap: 1          // band width between tiles, logical pixels
   property color gridColor: "#000000"
-  property real gridOpacity: 1.0
+  property real gridOpacity: 0.5
 
   // Interactive Cursor-Hover Glow Effect:
   // Tiles around the cursor shine with a radial falloff: the closer to the

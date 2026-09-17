@@ -89,17 +89,17 @@ omarchy-shell background gridToggle            # grid overlay on or off
 omarchy-shell background gridStatus            # state, pitch, gap, colour, opacity
 omarchy-shell background gridSize 16           # line pitch in logical pixels
 omarchy-shell background gridGap 1             # band width: 1 = thin lines
-omarchy-shell background gridOpacity 1.0       # strength of the bands (0-1)
+omarchy-shell background gridOpacity 0.5       # strength of the bands (0-1)
 omarchy-shell background gridColor "#000000"   # band colour
 ```
 
 ### Mosaic Pixelation Controls
 
-Mosaic pixelation is off by default:
+Mosaic pixelation is enabled by default:
 
 ```bash
 omarchy-shell background mosaicToggle          # mosaic pixelation on or off
-omarchy-shell background mosaicStatus          # "false 8" - state and block size
+omarchy-shell background mosaicStatus          # "true 8" - state and block size
 omarchy-shell background mosaicBlockSize 8     # block edge in logical pixels
 ```
 
@@ -115,5 +115,5 @@ omarchy-shell background mosaicBlockSize 8     # block edge in logical pixels
 ## Notes
 
 - Fork of the built-in `omarchy.background` renderer (declared through `omarchy.clonedFrom`). It replaces the default background renderer while enabled.
-- State is in-memory: a shell restart returns settings to their defaults (grid on, glow on, mosaic off).
+- State is in-memory: a shell restart returns settings to their defaults (grid on, glow on, mosaic on).
 - Uninstall with `omarchy plugin remove rubichandrap.mozax` to restore the default background.
