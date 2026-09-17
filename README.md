@@ -56,7 +56,7 @@ The bottom tile visualizer is enabled by default (powered by Cava, only active w
 ```bash
 omarchy-shell background visualizerToggle         # toggle visualizer on or off
 omarchy-shell background visualizerStatus         # state, opacity, max height
-omarchy-shell background visualizerOpacity 0.25   # tile visualizer opacity (0.0 - 1.0, default 0.25 for subtle look)
+omarchy-shell background visualizerOpacity 0.65   # tile visualizer opacity (0.0 - 1.0)
 omarchy-shell background visualizerHeight 16      # maximum visualizer height in tiles
 ```
 
