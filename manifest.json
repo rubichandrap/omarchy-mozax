@@ -4,7 +4,7 @@
   "name": "Mozax",
   "version": "1.0.0",
   "author": "rubichandrap",
-  "description": "Desktop background renderer with grid overlay, interactive cursor-hover tile glow, and optional mosaic effect",
+  "description": "Desktop background renderer for Omarchy with grid overlay, cursor-hover tile spotlight, click mosaic logo burst, and audio visualizer",
   "kinds": [
     "service"
   ],

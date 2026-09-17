@@ -49,7 +49,7 @@ Item {
   property real glowIntensity: 0.45        // Peak shine brightness (0.0 to 1.0)
   property int glowDuration: 400           // Fade-out duration in milliseconds
   property bool glowTrail: true            // Smooth fading trail vs instant follow
-  property bool glowUseTheme: true         // Dynamically tracks current Omarchy theme accent color
+  property bool glowUseTheme: false        // Default false (#ffffff white), can be toggled to true for theme accent
   property color customGlowColor: "#ffffff"
   property color glowColor: glowUseTheme ? Color.accent : customGlowColor
   property bool glowBorder: true           // Subtle border highlight around glowing tiles
@@ -248,8 +248,11 @@ Item {
 
     function glowColor(value: string): void {
       var s = String(value || "").trim().toLowerCase()
-      if (s === "theme" || s === "accent" || s === "default") {
+      if (s === "theme" || s === "accent") {
         root.glowUseTheme = true
+      } else if (s === "default" || s === "white" || s === "#fff" || s === "#ffffff") {
+        root.glowUseTheme = false
+        root.customGlowColor = "#ffffff"
       } else if (s.length > 0) {
         root.glowUseTheme = false
         root.customGlowColor = s

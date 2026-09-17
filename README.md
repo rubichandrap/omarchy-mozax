@@ -11,8 +11,8 @@ as normal.
 
 - **Cursor-Hover Tile Glow**: As the cursor moves across the desktop, tiles light up
   and shine brighter based on their underlying wallpaper colors with smooth radial falloff.
-- **Click Ripple with Omarchy Logo**: Clicking on the desktop triggers an expanding
-  scale-up burst of the Omarchy logo with an animated energy ring, styled in your theme's accent color.
+- **Click Burst with Mosaic Omarchy Logo**: Clicking on the desktop triggers an expanding
+  scale-up burst of the iconic pixel-art Omarchy mosaic logo directly from the clicked tile.
 - **Audio Tile Visualizer**: Spectrum equalizer along the bottom edge that pulses to
   system audio, rising through the grid into discrete mosaic blocks rendered in your Omarchy theme colors.
 - **Glowing Trail**: Leaves a smooth, fading wake behind the cursor (configurable duration
@@ -47,7 +47,7 @@ omarchy-shell background glowRadius 3          # spotlight radius in tiles (0 = 
 omarchy-shell background glowIntensity 0.45    # peak center brightness (0.0 - 1.0)
 omarchy-shell background glowDuration 400      # fade-out trail duration in ms (0 = instant)
 omarchy-shell background glowTrail true        # true = smooth fading trail, false = instant follow
-omarchy-shell background glowColor theme       # "theme" / "accent" to match Omarchy theme, or custom hex
+omarchy-shell background glowColor "#ffffff"   # glow overlay colour (#ffffff white default, or "theme"/"accent")
 omarchy-shell background glowBorder true       # subtle illuminated tile border (true/false)
 ```
 
