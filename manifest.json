@@ -4,7 +4,7 @@
   "name": "Mozax",
   "version": "1.0.0",
   "author": "rubichandrap",
-  "description": "Desktop background renderer with a toggleable mosaic effect",
+  "description": "Desktop background renderer with grid overlay, interactive cursor-hover tile glow, and optional mosaic effect",
   "kinds": [
     "service"
   ],
