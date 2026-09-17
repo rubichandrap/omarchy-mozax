@@ -54,6 +54,16 @@ Item {
   property color glowColor: glowUseTheme ? Color.accent : customGlowColor
   property bool glowBorder: true           // Subtle border highlight around glowing tiles
   property color glowBorderColor: glowUseTheme ? Color.accent : customGlowColor
+
+  // Audio Visualizer Effect:
+  // Tile spectrum analyzer along the bottom of the screen, rising into mosaic
+  // tiles that pulse with audio frequencies and respect the Omarchy theme colors.
+  property bool visualizer: true
+  property real visualizerOpacity: 0.65     // Tile visualizer opacity (0.0 to 1.0)
+  property int visualizerHeight: 16         // Maximum visualizer height in tiles
+  property var visualizerValues: []
+  readonly property int visualizerBarsCount: 60
+  readonly property string cavaConfigFile: stateHome + "/omarchy/mozax-cava.conf"
   function imageUrl(path) {
     return Util.fileUrl(path)
   }
@@ -152,6 +162,45 @@ Item {
     }
   }
 
+  Process {
+    id: ensureCavaConfigProc
+    command: ["bash", "-c", "if [[ ! -f '" + root.cavaConfigFile + "' ]]; then mkdir -p '" + root.stateHome + "/omarchy' && cat << 'EOF' > '" + root.cavaConfigFile + "'\n[general]\nbars = 60\nframerate = 30\nautosens = 1\n\n[input]\nmethod = pulse\n\n[output]\nmethod = raw\nraw_target = /dev/stdout\ndata_format = ascii\nascii_max_range = 16\nEOF\nfi"]
+    running: true
+    onExited: function(exitCode) {
+      if (root.visualizer) cavaProc.running = true
+    }
+  }
+
+  Process {
+    id: cavaProc
+    command: ["cava", "-p", root.cavaConfigFile]
+    running: false
+    stdout: SplitParser {
+      splitMarker: "\n"
+      onRead: function(line) {
+        var parts = line.split(";")
+        var vals = []
+        for (var i = 0; i < parts.length; i++) {
+          var p = parts[i].trim()
+          if (p.length > 0) vals.push(parseInt(p) || 0)
+        }
+        if (vals.length > 0) root.visualizerValues = vals
+      }
+    }
+    onExited: function(exitCode) {
+      if (root.visualizer) cavaRestartTimer.restart()
+    }
+  }
+
+  Timer {
+    id: cavaRestartTimer
+    interval: 1000
+    repeat: false
+    onTriggered: {
+      if (root.visualizer && !cavaProc.running) cavaProc.running = true
+    }
+  }
+
   IpcHandler {
     target: "background"
 
@@ -209,6 +258,34 @@ Item {
 
     function glowBorder(value: string): void {
       root.glowBorder = value === "true"
+    }
+
+    // Audio visualizer controls
+    function visualizerToggle(): void {
+      root.visualizer = !root.visualizer
+      if (root.visualizer) cavaProc.running = true
+      else cavaProc.running = false
+    }
+
+    function visualizer(value: string): void {
+      root.visualizer = value === "true"
+      if (root.visualizer) cavaProc.running = true
+      else cavaProc.running = false
+    }
+
+    function visualizerStatus(): string {
+      return (root.visualizer ? "true" : "false") + " " + root.visualizerOpacity
+        + " " + root.visualizerHeight
+    }
+
+    function visualizerOpacity(value: string): void {
+      var v = Number(value)
+      if (isFinite(v)) root.visualizerOpacity = Math.max(0, Math.min(1, v))
+    }
+
+    function visualizerHeight(value: string): void {
+      var n = parseInt(value)
+      if (n >= 2) root.visualizerHeight = n
     }
     // Mozax additions: mosaic toggle, block size and status.
     function mosaicToggle(): void {
@@ -398,6 +475,50 @@ Item {
           layer.enabled: root.mosaic
           layer.textureSize: Qt.size(Math.max(1, Math.round(width / root.mosaicBlock)), Math.max(1, Math.round(height / root.mosaicBlock)))
           onStatusChanged: panel.maybeStartReveal()
+        }
+      }
+
+      // Audio visualizer mosaic tiles along the bottom
+      Item {
+        id: visualizerLayer
+        anchors.fill: parent
+        visible: root.visualizer && root.visualizerValues.length > 0
+
+        readonly property int totalCols: Math.floor(panel.width / root.gridSize)
+        readonly property int colsPerBar: Math.max(1, Math.round(totalCols / root.visualizerBarsCount))
+        readonly property int barSpanPixels: colsPerBar * root.gridSize
+        readonly property int totalSpanWidth: root.visualizerBarsCount * barSpanPixels
+        readonly property int startOffset: Math.max(0, Math.floor((panel.width - totalSpanWidth) / 2))
+
+        Repeater {
+          model: root.visualizerBarsCount
+
+          Rectangle {
+            id: vizBar
+            anchors.bottom: parent.bottom
+
+            x: visualizerLayer.startOffset + index * visualizerLayer.barSpanPixels
+            width: Math.max(0, visualizerLayer.barSpanPixels - root.gridGap)
+
+            property int rawVal: root.visualizerValues.length > index ? root.visualizerValues[index] : 0
+            property int tileCount: Math.min(root.visualizerHeight, rawVal)
+
+            height: Math.max(0, tileCount * root.gridSize - root.gridGap)
+
+            Behavior on height {
+              NumberAnimation {
+                duration: 65
+                easing.type: Easing.OutQuad
+              }
+            }
+
+            gradient: Gradient {
+              GradientStop { position: 0.0; color: Color.foreground }
+              GradientStop { position: 0.6; color: Color.accent }
+              GradientStop { position: 1.0; color: Qt.darker(Color.accent, 1.25) }
+            }
+            opacity: root.visualizerOpacity
+          }
         }
       }
 

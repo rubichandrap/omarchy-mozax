@@ -11,6 +11,8 @@ as normal.
 
 - **Cursor-Hover Tile Glow**: As the cursor moves across the desktop, tiles light up
   and shine brighter based on their underlying wallpaper colors with smooth radial falloff.
+- **Audio Tile Visualizer**: Spectrum equalizer along the bottom edge that pulses to
+  system audio, rising through the grid into discrete mosaic blocks rendered in your Omarchy theme colors.
 - **Glowing Trail**: Leaves a smooth, fading wake behind the cursor (configurable duration
   or instant follow).
 - **Grid Overlay**: Configurable line pitch (16px default), gap width, color, and opacity.
@@ -45,6 +47,17 @@ omarchy-shell background glowDuration 400      # fade-out trail duration in ms (
 omarchy-shell background glowTrail true        # true = smooth fading trail, false = instant follow
 omarchy-shell background glowColor theme       # "theme" / "accent" to match Omarchy theme, or custom hex
 omarchy-shell background glowBorder true       # subtle illuminated tile border (true/false)
+```
+
+### Audio Visualizer Controls
+
+The bottom tile visualizer is enabled by default (powered by Cava, only active when audio plays):
+
+```bash
+omarchy-shell background visualizerToggle         # toggle visualizer on or off
+omarchy-shell background visualizerStatus         # state, opacity, max height
+omarchy-shell background visualizerOpacity 0.65   # tile visualizer opacity (0.0 - 1.0)
+omarchy-shell background visualizerHeight 16      # maximum visualizer height in tiles
 ```
 
 ### Grid Overlay Controls
