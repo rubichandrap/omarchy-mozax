@@ -610,8 +610,8 @@ Item {
                 target: burstItem
                 property: "scale"
                 from: 1.0
-                to: 6.5
-                duration: 550
+                to: 8.0
+                duration: 650
                 easing.type: Easing.OutCubic
               }
 
@@ -620,28 +620,27 @@ Item {
                 property: "opacity"
                 from: 1.0
                 to: 0.0
-                duration: 550
+                duration: 650
                 easing.type: Easing.OutQuad
               }
             }
 
-            // Expanding square tile border matching the grid tiles
-            Rectangle {
-              anchors.fill: parent
-              color: "transparent"
-              border.width: 1
-              border.color: root.glowColor
-            }
-
-            // Omarchy logo centered right inside the glowing tile
-            Text {
+            // Mosaic-shaped Omarchy logo emerging directly from the glowing tile
+            Image {
+              id: mosaicLogo
               anchors.centerIn: parent
-              text: "\ue900"
-              font.family: "omarchy"
-              font.pixelSize: Math.max(1, root.gridSize - root.gridGap)
-              color: root.glowColor
-            }
+              width: parent.width * 1.5
+              height: width * (234 / 279)
+              source: "./omarchy-mosaic-logo.svg"
+              fillMode: Image.PreserveAspectFit
+              asynchronous: true
 
+              layer.enabled: true
+              layer.effect: MultiEffect {
+                colorization: 1.0
+                colorizationColor: root.glowColor
+              }
+            }
             function trigger(col, row) {
               x = col * root.gridSize + root.gridGap
               y = row * root.gridSize + root.gridGap
