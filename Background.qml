@@ -589,7 +589,7 @@ Item {
         }
       }
 
-      // Click burst ripple with expanding Omarchy logo emerging directly from the glowing tile
+      // Click burst with expanding Omarchy logo emerging directly from the glowing tile
       Item {
         id: burstLayer
         anchors.fill: parent
@@ -601,8 +601,8 @@ Item {
 
           Item {
             id: burstItem
-            width: Math.max(0, root.gridSize - root.gridGap)
-            height: Math.max(0, root.gridSize - root.gridGap)
+            width: root.gridSize * 3
+            height: width * (520 / 472)
             visible: opacity > 0.001
             opacity: 0.0
 
@@ -612,28 +612,36 @@ Item {
               NumberAnimation {
                 target: burstItem
                 property: "scale"
-                from: 1.0
-                to: 8.0
-                duration: 650
-                easing.type: Easing.OutCubic
+                from: 0.4
+                to: 3.8
+                duration: 550
+                easing.type: Easing.OutBack
+                easing.overshoot: 1.2
               }
 
-              NumberAnimation {
-                target: burstItem
-                property: "opacity"
-                from: 1.0
-                to: 0.0
-                duration: 650
-                easing.type: Easing.OutQuad
+              SequentialAnimation {
+                NumberAnimation {
+                  target: burstItem
+                  property: "opacity"
+                  from: 1.0
+                  to: 1.0
+                  duration: 80
+                }
+                NumberAnimation {
+                  target: burstItem
+                  property: "opacity"
+                  from: 1.0
+                  to: 0.0
+                  duration: 470
+                  easing.type: Easing.OutQuad
+                }
               }
             }
 
-            // Mosaic-shaped Omarchy logo emerging directly from the glowing tile
+            // Clean geometric Omarchy maze logo
             Image {
               id: mosaicLogo
-              anchors.centerIn: parent
-              width: parent.width * 1.5
-              height: width * (234 / 279)
+              anchors.fill: parent
               source: "./omarchy-mosaic-logo.svg"
               fillMode: Image.PreserveAspectFit
               asynchronous: true
@@ -642,11 +650,15 @@ Item {
               layer.effect: MultiEffect {
                 colorization: 1.0
                 colorizationColor: root.glowColor
+                shadowEnabled: true
+                shadowColor: "#000000"
+                shadowBlur: 0.4
               }
             }
+
             function trigger(col, row) {
-              x = col * root.gridSize + root.gridGap
-              y = row * root.gridSize + root.gridGap
+              x = (col + 0.5) * root.gridSize - width / 2
+              y = (row + 0.5) * root.gridSize - height / 2
               transformOrigin = Item.Center
               burstAnim.restart()
             }
