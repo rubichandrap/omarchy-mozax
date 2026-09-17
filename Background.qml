@@ -489,10 +489,12 @@ Item {
         visible: root.visualizer && root.visualizerValues.length > 0
 
         readonly property int totalCols: Math.floor(panel.width / root.gridSize)
-        readonly property int colsPerBar: Math.max(1, Math.round(totalCols / root.visualizerBarsCount))
+        readonly property int colsPerBar: Math.max(1, Math.floor(totalCols / root.visualizerBarsCount))
         readonly property int barSpanPixels: colsPerBar * root.gridSize
-        readonly property int totalSpanWidth: root.visualizerBarsCount * barSpanPixels
-        readonly property int startOffset: Math.max(0, Math.floor((panel.width - totalSpanWidth) / 2))
+        readonly property int totalBarsCols: root.visualizerBarsCount * colsPerBar
+        readonly property int startCol: Math.max(0, Math.floor((totalCols - totalBarsCols) / 2))
+        readonly property int startOffset: startCol * root.gridSize
+        readonly property int bottomOffset: panel.height % root.gridSize
 
         Repeater {
           model: root.visualizerBarsCount
@@ -500,8 +502,9 @@ Item {
           Rectangle {
             id: vizBar
             anchors.bottom: parent.bottom
+            anchors.bottomMargin: visualizerLayer.bottomOffset
 
-            x: visualizerLayer.startOffset + index * visualizerLayer.barSpanPixels
+            x: visualizerLayer.startOffset + index * visualizerLayer.barSpanPixels + root.gridGap
             width: Math.max(0, visualizerLayer.barSpanPixels - root.gridGap)
 
             property int rawVal: root.visualizerValues.length > index ? root.visualizerValues[index] : 0
