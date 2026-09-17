@@ -32,7 +32,8 @@ Item {
   // scaled back up without smoothing, so the desktop shows retro blocks.
   // mosaicBlock is the block edge length in logical pixels: 8 fine, 16 medium,
   // 24 coarse. Raise it for a blockier desktop.
-  property bool mosaic: false
+  // On by default: enabling the plugin is meant to show the effect.
+  property bool mosaic: true
   property int mosaicBlock: 8
 
   function imageUrl(path) {

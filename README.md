@@ -13,6 +13,9 @@ omarchy restart shell
 
 ## Use
 
+The mosaic effect is on as soon as the plugin is enabled. These commands
+control it:
+
 ```bash
 omarchy-shell background mosaicToggle      # flip the effect on or off
 omarchy-shell background mosaicStatus      # "true 8" - state and block size
@@ -27,7 +30,8 @@ medium, 24 coarse.
 - Fork of the built-in `omarchy.background` renderer (declared through
   `omarchy.clonedFrom`), so it replaces the built-in while enabled and
   updates to the built-in do not reach it.
-- The effect is in-memory: a shell restart resets it to off.
+- The mosaic state is in-memory: a shell restart returns it to its default,
+  which is on.
 - Uninstall with `omarchy plugin remove rubichandrap.mozax`; the built-in
   background comes back.
 - Editing the plugin's QML needs `omarchy restart shell` - hot reload does
