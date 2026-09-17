@@ -45,13 +45,15 @@ Item {
   // Tiles around the cursor shine with a radial falloff: the closer to the
   // cursor, the brighter the tile illuminates.
   property bool glow: true
-  property int glowRadius: 2               // Radius in tiles around cursor (0 = single tile)
-  property real glowIntensity: 0.40        // Peak shine brightness (0.0 to 1.0)
+  property int glowRadius: 3               // Radius in tiles around cursor (increased spotlight)
+  property real glowIntensity: 0.45        // Peak shine brightness (0.0 to 1.0)
   property int glowDuration: 400           // Fade-out duration in milliseconds
   property bool glowTrail: true            // Smooth fading trail vs instant follow
-  property color glowColor: "#ffffff"      // Shine overlay color (illuminates wallpaper)
+  property bool glowUseTheme: true         // Dynamically tracks current Omarchy theme accent color
+  property color customGlowColor: "#ffffff"
+  property color glowColor: glowUseTheme ? Color.accent : customGlowColor
   property bool glowBorder: true           // Subtle border highlight around glowing tiles
-  property color glowBorderColor: "#ffffff"
+  property color glowBorderColor: glowUseTheme ? Color.accent : customGlowColor
   function imageUrl(path) {
     return Util.fileUrl(path)
   }
@@ -169,7 +171,7 @@ Item {
     function glowStatus(): string {
       return (root.glow ? "true" : "false") + " " + root.glowIntensity
         + " " + root.glowDuration + " " + (root.glowTrail ? "true" : "false")
-        + " " + root.glowColor + " " + root.glowRadius
+        + " " + root.glowColor + " " + root.glowRadius + " " + (root.glowUseTheme ? "theme" : "custom")
     }
 
     function glowRadius(value: string): void {
@@ -196,8 +198,13 @@ Item {
     }
 
     function glowColor(value: string): void {
-      var s = String(value).trim()
-      if (s.length > 0) root.glowColor = s
+      var s = String(value || "").trim().toLowerCase()
+      if (s === "theme" || s === "accent" || s === "default") {
+        root.glowUseTheme = true
+      } else if (s.length > 0) {
+        root.glowUseTheme = false
+        root.customGlowColor = s
+      }
     }
 
     function glowBorder(value: string): void {

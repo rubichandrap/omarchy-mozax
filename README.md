@@ -38,12 +38,12 @@ The tile glow is enabled by default. You can adjust its behavior dynamically via
 
 ```bash
 omarchy-shell background glowToggle            # toggle glow on or off
-omarchy-shell background glowStatus            # state, intensity, duration, trail, color, radius
-omarchy-shell background glowRadius 2          # spotlight radius in tiles (0 = single tile)
-omarchy-shell background glowIntensity 0.40    # peak center brightness (0.0 - 1.0)
+omarchy-shell background glowStatus            # state, intensity, duration, trail, color, radius, mode
+omarchy-shell background glowRadius 3          # spotlight radius in tiles (0 = single tile)
+omarchy-shell background glowIntensity 0.45    # peak center brightness (0.0 - 1.0)
 omarchy-shell background glowDuration 400      # fade-out trail duration in ms (0 = instant)
 omarchy-shell background glowTrail true        # true = smooth fading trail, false = instant follow
-omarchy-shell background glowColor "#ffffff"   # glow overlay colour (white illuminates wallpaper)
+omarchy-shell background glowColor theme       # "theme" / "accent" to match Omarchy theme, or custom hex
 omarchy-shell background glowBorder true       # subtle illuminated tile border (true/false)
 ```
 
