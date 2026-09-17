@@ -11,6 +11,8 @@ as normal.
 
 - **Cursor-Hover Tile Glow**: As the cursor moves across the desktop, tiles light up
   and shine brighter based on their underlying wallpaper colors with smooth radial falloff.
+- **Click Ripple with Omarchy Logo**: Clicking on the desktop triggers an expanding
+  scale-up burst of the Omarchy logo with an animated energy ring, styled in your theme's accent color.
 - **Audio Tile Visualizer**: Spectrum equalizer along the bottom edge that pulses to
   system audio, rising through the grid into discrete mosaic blocks rendered in your Omarchy theme colors.
 - **Glowing Trail**: Leaves a smooth, fading wake behind the cursor (configurable duration

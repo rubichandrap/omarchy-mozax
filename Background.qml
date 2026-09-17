@@ -585,6 +585,84 @@ Item {
           }
         }
       }
+
+      // Click burst ripple with expanding Omarchy logo
+      Item {
+        id: burstLayer
+        anchors.fill: parent
+        visible: root.glow
+
+        Repeater {
+          id: burstPool
+          model: 6
+
+          Item {
+            id: burstItem
+            width: 112
+            height: 112
+            visible: opacity > 0.001
+            opacity: 0.0
+            scale: 0.2
+
+            ParallelAnimation {
+              id: burstAnim
+
+              NumberAnimation {
+                target: burstItem
+                property: "scale"
+                from: 0.2
+                to: 2.2
+                duration: 600
+                easing.type: Easing.OutCubic
+              }
+
+              NumberAnimation {
+                target: burstItem
+                property: "opacity"
+                from: 0.95
+                to: 0.0
+                duration: 600
+                easing.type: Easing.OutQuad
+              }
+            }
+
+            // Expanding ripple ring
+            Rectangle {
+              anchors.centerIn: parent
+              width: parent.width * 0.88
+              height: parent.height * 0.88
+              radius: width / 2
+              color: "transparent"
+              border.width: 2
+              border.color: root.glowColor
+            }
+
+            // Omarchy logo glyph
+            Text {
+              anchors.centerIn: parent
+              text: "\ue900"
+              font.family: "omarchy"
+              font.pixelSize: 56
+              color: root.glowColor
+            }
+
+            function trigger(cx, cy) {
+              x = cx - width / 2
+              y = cy - height / 2
+              burstAnim.restart()
+            }
+          }
+        }
+
+        property int burstIndex: 0
+        function spawn(cx, cy) {
+          var item = burstPool.itemAt(burstIndex)
+          if (item) {
+            item.trigger(cx, cy)
+            burstIndex = (burstIndex + 1) % 6
+          }
+        }
+      }
       // 4. Grid overlay lines drawn over the tiles
       Item {
         id: gridLayer
@@ -743,6 +821,13 @@ Item {
 
         onExited: {
           glowController.reset()
+        }
+
+        onClicked: function(mouse) {
+          if (!root.glow) return
+          if (mouse.button === Qt.LeftButton) {
+            burstLayer.spawn(mouse.x, mouse.y)
+          }
         }
 
         onDoubleClicked: function(mouse) {
