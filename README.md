@@ -7,18 +7,35 @@ The wallpaper itself remains untouched — the grid and dynamic lighting effects
 draw directly on top of it. Theme switches and background cycling continue working
 as normal.
 
+![Click Burst with Animated Omarchy Logo](assets/logo-burst.png)
+
 ## Features
+
+- **Click Burst with Animated Omarchy Logo**: Clicking on the desktop triggers an expanding
+  wave of glowing Omarchy mosaic tiles that scale up radially from the cursor, respecting your glow radius and theme accent.
+
+  ![Click Burst with Animated Omarchy Logo](assets/logo-burst.png)
 
 - **Cursor-Hover Tile Glow**: As the cursor moves across the desktop, tiles light up
   and shine brighter based on their underlying wallpaper colors with smooth radial falloff.
-- **Click Burst with Mosaic Omarchy Logo**: Clicking on the desktop triggers an expanding
-  scale-up burst of the iconic pixel-art Omarchy mosaic logo directly from the clicked tile.
+
+  ![Cursor-Hover Tile Glow](assets/glow.png)
+
 - **Audio Tile Visualizer**: Spectrum equalizer along the bottom edge that pulses to
   system audio, rising through the grid into discrete mosaic blocks rendered in your Omarchy theme colors.
+
+  ![Audio Tile Visualizer](assets/visualizer.png)
+
+- **Grid Overlay**: Configurable line pitch (16px/32px default), gap width, color, and opacity.
+
+  ![Grid Overlay](assets/grid.png)
+
+- **Mosaic Pixelation**: Optional retro blocky wallpaper variant.
+
+  ![Mosaic Pixelation](assets/mosaic.png)
+
 - **Glowing Trail**: Leaves a smooth, fading wake behind the cursor (configurable duration
   or instant follow).
-- **Grid Overlay**: Configurable line pitch (16px default), gap width, color, and opacity.
-- **Mosaic Pixelation**: Optional retro blocky wallpaper variant.
 
 ## Install
 

@@ -69,6 +69,8 @@ Item {
   function imageUrl(path) {
     return Util.fileUrl(path)
   }
+  signal requestBurst(int col, int row)
+  signal requestGlowHover(int x, int y)
 
   function refreshBackground() {
     if (!readlinkProc.running) readlinkProc.running = true
@@ -263,6 +265,18 @@ Item {
 
     function glowBorder(value: string): void {
       root.glowBorder = value === "true"
+    }
+
+    function burst(col: string, row: string): void {
+      var c = parseInt(col) || 10
+      var r = parseInt(row) || 10
+      root.requestBurst(c, r)
+    }
+
+    function glowHover(x: string, y: string): void {
+      var px = parseInt(x) || 960
+      var py = parseInt(y) || 600
+      root.requestGlowHover(px, py)
     }
 
     // Audio visualizer controls
@@ -629,11 +643,114 @@ Item {
         }
       }
 
-      // Click burst with expanding Omarchy logo emerging directly from the glowing tile
+      // Click burst with animated glowing Omarchy mosaic tiles emerging from cursor
       Item {
         id: burstLayer
         anchors.fill: parent
         visible: root.glow
+
+        // Precomputed 95 tiles of the 15x15 pixel-art Omarchy logo,
+        // sorted radially from closest to cursor (distance 5.0) to furthest (distance 9.9).
+        // x, y: grid coordinates (0..14)
+        // n: normalized distance from closest (0.0) to furthest (1.0)
+        // f: radial cosine falloff curve (1.0 at center, decaying to 0.0 at edge)
+        readonly property var logoTiles: [
+          {x:7,y:2,n:0.000,f:1.000},
+          {x:2,y:7,n:0.000,f:1.000},
+          {x:12,y:7,n:0.000,f:1.000},
+          {x:7,y:12,n:0.000,f:1.000},
+          {x:6,y:2,n:0.020,f:1.000},
+          {x:2,y:6,n:0.020,f:1.000},
+          {x:12,y:6,n:0.020,f:1.000},
+          {x:2,y:8,n:0.020,f:1.000},
+          {x:12,y:8,n:0.020,f:1.000},
+          {x:6,y:12,n:0.020,f:1.000},
+          {x:5,y:2,n:0.079,f:0.992},
+          {x:2,y:5,n:0.079,f:0.992},
+          {x:12,y:5,n:0.079,f:0.992},
+          {x:2,y:9,n:0.079,f:0.992},
+          {x:12,y:9,n:0.079,f:0.992},
+          {x:5,y:12,n:0.079,f:0.992},
+          {x:7,y:1,n:0.204,f:0.950},
+          {x:1,y:7,n:0.204,f:0.950},
+          {x:7,y:13,n:0.204,f:0.950},
+          {x:4,y:2,n:0.170,f:0.965},
+          {x:2,y:4,n:0.170,f:0.965},
+          {x:12,y:4,n:0.170,f:0.965},
+          {x:2,y:10,n:0.170,f:0.965},
+          {x:12,y:10,n:0.170,f:0.965},
+          {x:4,y:12,n:0.170,f:0.965},
+          {x:3,y:2,n:0.288,f:0.901},
+          {x:11,y:2,n:0.288,f:0.901},
+          {x:2,y:3,n:0.288,f:0.901},
+          {x:12,y:3,n:0.288,f:0.901},
+          {x:2,y:11,n:0.288,f:0.901},
+          {x:12,y:11,n:0.288,f:0.901},
+          {x:3,y:12,n:0.288,f:0.901},
+          {x:8,y:12,n:0.288,f:0.901},
+          {x:11,y:12,n:0.288,f:0.901},
+          {x:8,y:0,n:0.425,f:0.796},
+          {x:6,y:0,n:0.425,f:0.796},
+          {x:7,y:0,n:0.408,f:0.811},
+          {x:0,y:7,n:0.408,f:0.811},
+          {x:14,y:7,n:0.408,f:0.811},
+          {x:7,y:14,n:0.408,f:0.811},
+          {x:9,y:12,n:0.425,f:0.796},
+          {x:0,y:6,n:0.425,f:0.796},
+          {x:14,y:6,n:0.425,f:0.796},
+          {x:0,y:8,n:0.425,f:0.796},
+          {x:14,y:8,n:0.425,f:0.796},
+          {x:6,y:14,n:0.425,f:0.796},
+          {x:2,y:2,n:0.422,f:0.798},
+          {x:12,y:2,n:0.422,f:0.798},
+          {x:2,y:12,n:0.422,f:0.798},
+          {x:12,y:12,n:0.422,f:0.798},
+          {x:5,y:0,n:0.465,f:0.761},
+          {x:9,y:0,n:0.465,f:0.761},
+          {x:0,y:5,n:0.465,f:0.761},
+          {x:14,y:5,n:0.465,f:0.761},
+          {x:0,y:9,n:0.465,f:0.761},
+          {x:14,y:9,n:0.465,f:0.761},
+          {x:5,y:14,n:0.465,f:0.761},
+          {x:9,y:14,n:0.465,f:0.761},
+          {x:10,y:12,n:0.572,f:0.626},
+          {x:4,y:0,n:0.531,f:0.681},
+          {x:10,y:0,n:0.531,f:0.681},
+          {x:0,y:4,n:0.531,f:0.681},
+          {x:14,y:4,n:0.531,f:0.681},
+          {x:0,y:10,n:0.531,f:0.681},
+          {x:14,y:10,n:0.531,f:0.681},
+          {x:4,y:14,n:0.531,f:0.681},
+          {x:10,y:14,n:0.531,f:0.681},
+          {x:3,y:0,n:0.620,f:0.559},
+          {x:11,y:0,n:0.620,f:0.559},
+          {x:0,y:3,n:0.620,f:0.559},
+          {x:14,y:3,n:0.620,f:0.559},
+          {x:0,y:11,n:0.620,f:0.559},
+          {x:14,y:11,n:0.620,f:0.559},
+          {x:3,y:14,n:0.620,f:0.559},
+          {x:11,y:14,n:0.620,f:0.559},
+          {x:2,y:0,n:0.724,f:0.419},
+          {x:12,y:0,n:0.724,f:0.419},
+          {x:0,y:2,n:0.724,f:0.419},
+          {x:14,y:2,n:0.724,f:0.419},
+          {x:0,y:12,n:0.724,f:0.419},
+          {x:14,y:12,n:0.724,f:0.419},
+          {x:2,y:14,n:0.724,f:0.419},
+          {x:12,y:14,n:0.724,f:0.419},
+          {x:1,y:0,n:0.838,f:0.252},
+          {x:13,y:0,n:0.838,f:0.252},
+          {x:0,y:1,n:0.861,f:0.216},
+          {x:14,y:1,n:0.861,f:0.216},
+          {x:0,y:13,n:0.861,f:0.216},
+          {x:14,y:13,n:0.861,f:0.216},
+          {x:1,y:14,n:0.861,f:0.216},
+          {x:13,y:14,n:0.861,f:0.216},
+          {x:0,y:0,n:1.000,f:0.000},
+          {x:14,y:0,n:1.000,f:0.000},
+          {x:0,y:14,n:1.000,f:0.000},
+          {x:14,y:14,n:1.000,f:0.000}
+        ]
 
         Repeater {
           id: burstPool
@@ -641,10 +758,28 @@ Item {
 
           Item {
             id: burstItem
-            width: root.gridSize * 3
-            height: width * (520 / 472)
+            // Physical radius in grid units respecting root.glowRadius
+            readonly property int r: Math.max(1, root.glowRadius)
+            width: (r * 2 + 1) * root.gridSize
+            height: width
             visible: opacity > 0.001
             opacity: 0.0
+
+            readonly property real cellSpan: width / 15.0
+            readonly property real tileGap: Math.max(1, root.gridGap)
+            readonly property real tileSize: Math.max(2, cellSpan - tileGap)
+            // Outward wave travel time across the glow radius
+            readonly property int waveTravelTime: Math.round(100 + r * 30)
+
+            signal triggerBurst()
+
+            layer.enabled: true
+            layer.effect: MultiEffect {
+              shadowEnabled: true
+              shadowColor: "#000000"
+              shadowBlur: 0.4
+              shadowOpacity: 0.55
+            }
 
             ParallelAnimation {
               id: burstAnim
@@ -652,11 +787,10 @@ Item {
               NumberAnimation {
                 target: burstItem
                 property: "scale"
-                from: 0.4
-                to: 3.8
-                duration: 550
-                easing.type: Easing.OutBack
-                easing.overshoot: 1.2
+                from: 0.75
+                to: 1.3
+                duration: 650
+                easing.type: Easing.OutQuad
               }
 
               SequentialAnimation {
@@ -665,34 +799,95 @@ Item {
                   property: "opacity"
                   from: 1.0
                   to: 1.0
-                  duration: 80
+                  duration: 150
                 }
                 NumberAnimation {
                   target: burstItem
                   property: "opacity"
                   from: 1.0
                   to: 0.0
-                  duration: 470
+                  duration: Math.max(350, root.glowDuration + 100)
                   easing.type: Easing.OutQuad
                 }
               }
             }
 
-            // Clean geometric Omarchy maze logo
-            Image {
-              id: mosaicLogo
-              anchors.fill: parent
-              source: "./omarchy-mosaic-logo.svg"
-              fillMode: Image.PreserveAspectFit
-              asynchronous: true
+            Repeater {
+              model: burstLayer.logoTiles
 
-              layer.enabled: true
-              layer.effect: MultiEffect {
-                colorization: 1.0
-                colorizationColor: root.glowColor
-                shadowEnabled: true
-                shadowColor: "#000000"
-                shadowBlur: 0.4
+              Rectangle {
+                id: tile
+                x: Math.round(modelData.x * burstItem.cellSpan + (burstItem.cellSpan - burstItem.tileSize) / 2)
+                y: Math.round(modelData.y * burstItem.cellSpan + (burstItem.cellSpan - burstItem.tileSize) / 2)
+                width: Math.round(burstItem.tileSize)
+                height: Math.round(burstItem.tileSize)
+                transformOrigin: Item.Center
+
+                color: root.glowColor
+                border.width: root.glowBorder ? 1 : 0
+                border.color: root.glowBorderColor
+
+                scale: 0.0
+                opacity: 0.0
+
+                // Closest tiles to cursor glow brightest; outer tiles respect radial falloff
+                readonly property real peakOpacity: Math.min(1.0, 0.45 + 0.55 * modelData.f)
+                // Stagger delay from closest to furthest
+                readonly property int tileDelay: Math.round(modelData.n * burstItem.waveTravelTime)
+
+                SequentialAnimation {
+                  id: tileAnim
+
+                  PauseAnimation { duration: tile.tileDelay }
+
+                  ParallelAnimation {
+                    // Tile scales up dynamically with overshoot bounce
+                    NumberAnimation {
+                      target: tile
+                      property: "scale"
+                      from: 0.15
+                      to: 1.0
+                      duration: 220
+                      easing.type: Easing.OutBack
+                      easing.overshoot: 1.25
+                    }
+
+                    SequentialAnimation {
+                      // Immediate burst glow
+                      NumberAnimation {
+                        target: tile
+                        property: "opacity"
+                        from: 0.0
+                        to: tile.peakOpacity
+                        duration: 45
+                      }
+                      // Brief peak hold
+                      NumberAnimation {
+                        target: tile
+                        property: "opacity"
+                        from: tile.peakOpacity
+                        to: tile.peakOpacity
+                        duration: 55
+                      }
+                      // Smooth fade out respecting root.glowDuration
+                      NumberAnimation {
+                        target: tile
+                        property: "opacity"
+                        from: tile.peakOpacity
+                        to: 0.0
+                        duration: Math.max(250, root.glowDuration)
+                        easing.type: Easing.OutQuad
+                      }
+                    }
+                  }
+                }
+
+                Connections {
+                  target: burstItem
+                  function onTriggerBurst() {
+                    tileAnim.restart()
+                  }
+                }
               }
             }
 
@@ -701,6 +896,7 @@ Item {
               y = (row + 0.5) * root.gridSize - height / 2
               transformOrigin = Item.Center
               burstAnim.restart()
+              triggerBurst()
             }
           }
         }
@@ -777,6 +973,12 @@ Item {
         function onIncomingBackgroundChanged() {
           panel.maskReady = false
           panel.maybeStartReveal()
+        }
+        function onRequestBurst(col, row) {
+          burstLayer.spawn(col, row)
+        }
+        function onRequestGlowHover(x, y) {
+          glowController.onPointerMoved(x, y)
         }
       }
 
