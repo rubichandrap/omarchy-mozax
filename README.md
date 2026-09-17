@@ -60,7 +60,8 @@ omarchy-shell background visualizerToggle         # toggle visualizer on or off
 omarchy-shell background visualizerStatus         # state, opacity, max height, width
 omarchy-shell background visualizerOpacity 0.65   # tile visualizer opacity (0.0 - 1.0)
 omarchy-shell background visualizerHeight 16      # maximum visualizer height in tiles
-omarchy-shell background visualizerWidth 1.0       # width ratio (1.0 / full, 0.5 / 50%, or default)
+omarchy-shell background visualizerWidth 1.0      # width ratio (1.0 / full, 0.5 / 50%, or default)
+```
 
 ### Grid Overlay Controls
 
