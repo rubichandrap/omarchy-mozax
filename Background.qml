@@ -62,6 +62,7 @@ Item {
   property bool visualizer: true
   property real visualizerOpacity: 0.65     // Tile visualizer opacity (0.0 to 1.0)
   property int visualizerHeight: 16         // Maximum visualizer height in tiles
+  property real visualizerWidth: 0.0        // Width ratio (0.0 = default auto, 0.05 to 1.0 = fraction of screen width)
   property var visualizerValues: []
   readonly property int visualizerBarsCount: 60
   readonly property string cavaConfigFile: stateHome + "/omarchy/mozax-cava.conf"
@@ -278,10 +279,25 @@ Item {
     }
 
     function visualizerStatus(): string {
+      var w = root.visualizerWidth <= 0.0 ? "default" : root.visualizerWidth.toFixed(2)
       return (root.visualizer ? "true" : "false") + " " + root.visualizerOpacity
-        + " " + root.visualizerHeight
+        + " " + root.visualizerHeight + " " + w
     }
 
+    function visualizerWidth(value: string): void {
+      var s = String(value || "").trim().toLowerCase()
+      if (s === "default" || s === "auto" || s === "0" || s === "0.0") {
+        root.visualizerWidth = 0.0
+      } else if (s === "full" || s === "max" || s === "1" || s === "1.0" || s === "100%") {
+        root.visualizerWidth = 1.0
+      } else {
+        var v = parseFloat(s)
+        if (s.endsWith("%")) v = v / 100.0
+        if (isFinite(v) && v > 0.0) {
+          root.visualizerWidth = Math.max(0.05, Math.min(1.0, v))
+        }
+      }
+    }
     function visualizerOpacity(value: string): void {
       var v = Number(value)
       if (isFinite(v)) root.visualizerOpacity = Math.max(0, Math.min(1, v))
@@ -489,15 +505,33 @@ Item {
         visible: root.visualizer && root.visualizerValues.length > 0
 
         readonly property int totalCols: Math.floor(panel.width / root.gridSize)
-        readonly property int colsPerBar: Math.max(1, Math.floor(totalCols / root.visualizerBarsCount))
+        readonly property bool customMode: root.visualizerWidth > 0.0
+        readonly property int targetCols: customMode
+          ? Math.max(1, Math.min(totalCols, Math.round(totalCols * root.visualizerWidth)))
+          : Math.min(totalCols, root.visualizerBarsCount * Math.max(1, Math.floor(totalCols / root.visualizerBarsCount)))
+        readonly property int colsPerBar: customMode ? 1 : Math.max(1, Math.floor(totalCols / root.visualizerBarsCount))
+        readonly property int barCount: customMode ? targetCols : root.visualizerBarsCount
         readonly property int barSpanPixels: colsPerBar * root.gridSize
-        readonly property int totalBarsCols: root.visualizerBarsCount * colsPerBar
+        readonly property int totalBarsCols: barCount * colsPerBar
         readonly property int startCol: Math.max(0, Math.floor((totalCols - totalBarsCols) / 2))
         readonly property int startOffset: startCol * root.gridSize
         readonly property int bottomOffset: panel.height % root.gridSize
 
+        function sampleValue(index, count) {
+          var vals = root.visualizerValues
+          if (!vals || vals.length === 0) return 0
+          if (count <= 1 || vals.length === 1) return vals[0] || 0
+          var pos = (index / (count - 1)) * (vals.length - 1)
+          var i0 = Math.floor(pos)
+          var i1 = Math.min(vals.length - 1, i0 + 1)
+          var f = pos - i0
+          var v0 = vals[i0] || 0
+          var v1 = vals[i1] || 0
+          return Math.round(v0 * (1 - f) + v1 * f)
+        }
+
         Repeater {
-          model: root.visualizerBarsCount
+          model: visualizerLayer.barCount
 
           Rectangle {
             id: vizBar
@@ -507,7 +541,9 @@ Item {
             x: visualizerLayer.startOffset + index * visualizerLayer.barSpanPixels + root.gridGap
             width: Math.max(0, visualizerLayer.barSpanPixels - root.gridGap)
 
-            property int rawVal: root.visualizerValues.length > index ? root.visualizerValues[index] : 0
+            property int rawVal: visualizerLayer.customMode
+              ? visualizerLayer.sampleValue(index, visualizerLayer.barCount)
+              : (root.visualizerValues.length > index ? root.visualizerValues[index] : 0)
             property int tileCount: Math.min(root.visualizerHeight, rawVal)
 
             height: Math.max(0, tileCount * root.gridSize - root.gridGap)
