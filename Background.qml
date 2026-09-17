@@ -40,13 +40,13 @@ Item {
 
   // Grid overlay drawn over the untouched wallpaper, so the image stays sharp.
   // gridGap 1 gives thin lines; larger gaps separate the tiles like grout.
-  // gridColor + gridOpacity control the bands, so a dark colour with a low
-  // opacity reads as soft gaps instead of solid black.
+  // gridColor + gridOpacity control the bands: solid black reads as a fine
+  // pencil grid, a dark colour at low opacity reads as soft gaps.
   property bool grid: true
-  property int gridSize: 4         // line pitch in logical pixels
+  property int gridSize: 32        // line pitch in logical pixels
   property int gridGap: 1          // band width between tiles, logical pixels
-  property color gridColor: "#ffffff"
-  property real gridOpacity: 0.12
+  property color gridColor: "#000000"
+  property real gridOpacity: 1.0
 
   function imageUrl(path) {
     return Util.fileUrl(path)
@@ -186,6 +186,7 @@ Item {
 
     function gridStatus(): string {
       return (root.grid ? "true" : "false") + " " + root.gridSize + " " + root.gridGap
+        + " " + root.gridColor + " " + root.gridOpacity
     }
 
     function gridSize(value: string): void {

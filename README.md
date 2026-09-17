@@ -18,11 +18,11 @@ pixelation is off by default. These commands control them:
 
 ```bash
 omarchy-shell background gridToggle        # grid overlay on or off
-omarchy-shell background gridStatus        # "true 4 1" - state, pitch, gap
-omarchy-shell background gridSize 4        # line pitch in logical pixels
+omarchy-shell background gridStatus        # state, pitch, gap, colour, opacity
+omarchy-shell background gridSize 32       # line pitch in logical pixels
 omarchy-shell background gridGap 1         # band width: 1 = thin lines
-omarchy-shell background gridOpacity 0.12  # strength of the bands (0-1)
-omarchy-shell background gridColor "#ffffff"  # band colour
+omarchy-shell background gridOpacity 1.0   # strength of the bands (0-1)
+omarchy-shell background gridColor "#000000"  # band colour
 
 omarchy-shell background mosaicToggle      # mosaic pixelation on or off
 omarchy-shell background mosaicStatus      # "false 8" - state and block size
@@ -38,7 +38,8 @@ omarchy-shell background gridColor "#000000"
 omarchy-shell background gridOpacity 0.35
 ```
 
-The default look is `gridGap 1`, white at `gridOpacity 0.12`.
+The default look is a 1-px black grid at a 32 logical px pitch (`gridGap 1`,
+`gridColor #000000`, `gridOpacity 1.0`).
 
 ## Notes
 
