@@ -41,7 +41,7 @@ Item {
   // Grid overlay: thin square grid drawn over the untouched wallpaper, so the
   // image stays sharp and the desktop gets a subtle tiled look.
   property bool grid: true
-  property int gridSize: 16        // line pitch in logical pixels
+  property int gridSize: 4         // line pitch in logical pixels
   property color gridColor: "#ffffff"
   property real gridOpacity: 0.12
 
