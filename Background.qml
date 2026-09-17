@@ -59,7 +59,7 @@ Item {
   // Tile spectrum analyzer along the bottom of the screen, rising into mosaic
   // tiles that pulse with audio frequencies and respect the Omarchy theme colors.
   property bool visualizer: true
-  property real visualizerOpacity: 0.65     // Tile visualizer opacity (0.0 to 1.0)
+  property real visualizerOpacity: 0.38     // Tile visualizer opacity (0.0 to 1.0, translucent over wallpaper)
   property int visualizerHeight: 16         // Maximum visualizer height in tiles
   property var visualizerValues: []
   readonly property int visualizerBarsCount: 60
