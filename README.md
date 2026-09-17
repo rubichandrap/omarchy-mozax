@@ -47,7 +47,7 @@ omarchy-shell background glowRadius 3          # spotlight radius in tiles (0 = 
 omarchy-shell background glowIntensity 0.45    # peak center brightness (0.0 - 1.0)
 omarchy-shell background glowDuration 400      # fade-out trail duration in ms (0 = instant)
 omarchy-shell background glowTrail true        # true = smooth fading trail, false = instant follow
-omarchy-shell background glowColor "#ffffff"   # glow overlay colour (#ffffff white default, or "theme"/"accent")
+omarchy-shell background glowColor theme       # "theme" (brightened active theme accent, default) or custom hex
 omarchy-shell background glowBorder true       # subtle illuminated tile border (true/false)
 ```
 

@@ -49,11 +49,12 @@ Item {
   property real glowIntensity: 0.45        // Peak shine brightness (0.0 to 1.0)
   property int glowDuration: 400           // Fade-out duration in milliseconds
   property bool glowTrail: true            // Smooth fading trail vs instant follow
-  property bool glowUseTheme: false        // Default false (#ffffff white), can be toggled to true for theme accent
+  property bool glowUseTheme: true         // Dynamically tracks brightened Omarchy theme accent color
   property color customGlowColor: "#ffffff"
-  property color glowColor: glowUseTheme ? Color.accent : customGlowColor
+  readonly property color brightThemeAccent: Qt.lighter(Color.accent, 1.45)
+  property color glowColor: glowUseTheme ? brightThemeAccent : customGlowColor
   property bool glowBorder: true           // Subtle border highlight around glowing tiles
-  property color glowBorderColor: glowUseTheme ? Color.accent : customGlowColor
+  property color glowBorderColor: glowUseTheme ? brightThemeAccent : customGlowColor
 
   // Audio Visualizer Effect:
   // Tile spectrum analyzer along the bottom of the screen, rising into mosaic
