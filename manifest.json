@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "rubichandrap.mozax",
+  "name": "Mozax",
+  "version": "1.0.0",
+  "author": "rubichandrap",
+  "description": "Desktop background renderer with a toggleable mosaic effect",
+  "kinds": [
+    "service"
+  ],
+  "entryPoints": {
+    "service": "Background.qml"
+  },
+  "omarchy": {
+    "clonedFrom": "omarchy.background"
+  }
+}
