@@ -38,12 +38,14 @@ Item {
   property bool mosaic: false
   property int mosaicBlock: 8
 
-  // Grid overlay: a square grid drawn over the untouched wallpaper, so the
-  // image stays sharp and the desktop gets a tiled retro look.
+  // Grid overlay: tiles separated by gaps, drawn over the untouched
+  // wallpaper, so the image stays sharp and the desktop gets a tiled look.
+  // The gaps use the theme background colour, so they follow theme switches.
   property bool grid: true
-  property int gridSize: 64
-  property color gridColor: "#ffffff"
-  property real gridOpacity: 0.12
+  property int gridSize: 64        // tile pitch in logical pixels
+  property int gridGap: 6          // gap width between tiles, logical pixels
+  property color gridColor: Color.background
+  property real gridOpacity: 1.0
 
   function imageUrl(path) {
     return Util.fileUrl(path)
@@ -182,12 +184,17 @@ Item {
     }
 
     function gridStatus(): string {
-      return (root.grid ? "true" : "false") + " " + root.gridSize
+      return (root.grid ? "true" : "false") + " " + root.gridSize + " " + root.gridGap
     }
 
     function gridSize(value: string): void {
       var n = parseInt(value)
       if (n >= 4) root.gridSize = n
+    }
+
+    function gridGap(value: string): void {
+      var n = parseInt(value)
+      if (n >= 0) root.gridGap = n
     }
 
     function set(path: string): void {
@@ -344,7 +351,7 @@ Item {
           model: Math.ceil(gridLayer.width / root.gridSize)
 
           Rectangle {
-            width: 1
+            width: root.gridGap
             height: gridLayer.height
             x: index * root.gridSize
             color: root.gridColor
@@ -355,7 +362,7 @@ Item {
           model: Math.ceil(gridLayer.height / root.gridSize)
 
           Rectangle {
-            height: 1
+            height: root.gridGap
             width: gridLayer.width
             y: index * root.gridSize
             color: root.gridColor
