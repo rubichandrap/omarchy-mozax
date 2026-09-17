@@ -38,10 +38,13 @@ Item {
   property bool mosaic: false
   property int mosaicBlock: 8
 
-  // Grid overlay: thin square grid drawn over the untouched wallpaper, so the
-  // image stays sharp and the desktop gets a subtle tiled look.
+  // Grid overlay drawn over the untouched wallpaper, so the image stays sharp.
+  // gridGap 1 gives thin lines; larger gaps separate the tiles like grout.
+  // gridColor + gridOpacity control the bands, so a dark colour with a low
+  // opacity reads as soft gaps instead of solid black.
   property bool grid: true
   property int gridSize: 4         // line pitch in logical pixels
+  property int gridGap: 1          // band width between tiles, logical pixels
   property color gridColor: "#ffffff"
   property real gridOpacity: 0.12
 
@@ -182,12 +185,27 @@ Item {
     }
 
     function gridStatus(): string {
-      return (root.grid ? "true" : "false") + " " + root.gridSize
+      return (root.grid ? "true" : "false") + " " + root.gridSize + " " + root.gridGap
     }
 
     function gridSize(value: string): void {
       var n = parseInt(value)
       if (n >= 4) root.gridSize = n
+    }
+
+    function gridGap(value: string): void {
+      var n = parseInt(value)
+      if (n >= 0 && n < root.gridSize) root.gridGap = n
+    }
+
+    function gridOpacity(value: string): void {
+      var v = Number(value)
+      if (isFinite(v)) root.gridOpacity = Math.max(0, Math.min(1, v))
+    }
+
+    function gridColor(value: string): void {
+      var s = String(value).trim()
+      if (s.length > 0) root.gridColor = s
     }
 
     function set(path: string): void {
@@ -344,7 +362,7 @@ Item {
           model: Math.ceil(gridLayer.width / root.gridSize)
 
           Rectangle {
-            width: 1
+            width: root.gridGap
             height: gridLayer.height
             x: index * root.gridSize
             color: root.gridColor
@@ -355,7 +373,7 @@ Item {
           model: Math.ceil(gridLayer.height / root.gridSize)
 
           Rectangle {
-            height: 1
+            height: root.gridGap
             width: gridLayer.width
             y: index * root.gridSize
             color: root.gridColor
