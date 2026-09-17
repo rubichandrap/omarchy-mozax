@@ -1,5 +1,6 @@
 // Mozax - fork of the built-in omarchy.background renderer (Omarchy 4.0.4)
-// with a toggleable mosaic effect on top of the wallpaper.
+// with a grid overlay and an optional mosaic pixelation on top of the
+// wallpaper.
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -32,9 +33,17 @@ Item {
   // scaled back up without smoothing, so the desktop shows retro blocks.
   // mosaicBlock is the block edge length in logical pixels: 8 fine, 16 medium,
   // 24 coarse. Raise it for a blockier desktop.
-  // On by default: enabling the plugin is meant to show the effect.
-  property bool mosaic: true
+  // Mosaic pixelation: optional blocky variant. Off by default so the
+  // wallpaper stays sharp.
+  property bool mosaic: false
   property int mosaicBlock: 8
+
+  // Grid overlay: a square grid drawn over the untouched wallpaper, so the
+  // image stays sharp and the desktop gets a tiled retro look.
+  property bool grid: true
+  property int gridSize: 64
+  property color gridColor: "#ffffff"
+  property real gridOpacity: 0.12
 
   function imageUrl(path) {
     return Util.fileUrl(path)
@@ -161,6 +170,24 @@ Item {
     function mosaicBlockSize(value: string): void {
       var n = parseInt(value)
       if (n >= 2) root.mosaicBlock = n
+    }
+
+    // Grid overlay additions.
+    function gridToggle(): void {
+      root.grid = !root.grid
+    }
+
+    function grid(value: string): void {
+      root.grid = value === "true"
+    }
+
+    function gridStatus(): string {
+      return (root.grid ? "true" : "false") + " " + root.gridSize
+    }
+
+    function gridSize(value: string): void {
+      var n = parseInt(value)
+      if (n >= 4) root.gridSize = n
     }
 
     function set(path: string): void {
@@ -304,6 +331,35 @@ Item {
           layer.enabled: root.mosaic
           layer.textureSize: Qt.size(Math.max(1, Math.round(width / root.mosaicBlock)), Math.max(1, Math.round(height / root.mosaicBlock)))
           onStatusChanged: panel.maybeStartReveal()
+        }
+      }
+
+      Item {
+        id: gridLayer
+        anchors.fill: parent
+        visible: root.grid
+        opacity: root.gridOpacity
+
+        Repeater {
+          model: Math.ceil(gridLayer.width / root.gridSize)
+
+          Rectangle {
+            width: 1
+            height: gridLayer.height
+            x: index * root.gridSize
+            color: root.gridColor
+          }
+        }
+
+        Repeater {
+          model: Math.ceil(gridLayer.height / root.gridSize)
+
+          Rectangle {
+            height: 1
+            width: gridLayer.width
+            y: index * root.gridSize
+            color: root.gridColor
+          }
         }
       }
 
