@@ -586,7 +586,7 @@ Item {
         }
       }
 
-      // Click burst ripple with expanding Omarchy logo
+      // Click burst ripple with expanding Omarchy logo emerging directly from the glowing tile
       Item {
         id: burstLayer
         anchors.fill: parent
@@ -598,11 +598,10 @@ Item {
 
           Item {
             id: burstItem
-            width: 112
-            height: 112
+            width: Math.max(0, root.gridSize - root.gridGap)
+            height: Math.max(0, root.gridSize - root.gridGap)
             visible: opacity > 0.001
             opacity: 0.0
-            scale: 0.2
 
             ParallelAnimation {
               id: burstAnim
@@ -610,55 +609,53 @@ Item {
               NumberAnimation {
                 target: burstItem
                 property: "scale"
-                from: 0.2
-                to: 2.2
-                duration: 600
+                from: 1.0
+                to: 6.5
+                duration: 550
                 easing.type: Easing.OutCubic
               }
 
               NumberAnimation {
                 target: burstItem
                 property: "opacity"
-                from: 0.95
+                from: 1.0
                 to: 0.0
-                duration: 600
+                duration: 550
                 easing.type: Easing.OutQuad
               }
             }
 
-            // Expanding ripple ring
+            // Expanding square tile border matching the grid tiles
             Rectangle {
-              anchors.centerIn: parent
-              width: parent.width * 0.88
-              height: parent.height * 0.88
-              radius: width / 2
+              anchors.fill: parent
               color: "transparent"
-              border.width: 2
+              border.width: 1
               border.color: root.glowColor
             }
 
-            // Omarchy logo glyph
+            // Omarchy logo centered right inside the glowing tile
             Text {
               anchors.centerIn: parent
               text: "\ue900"
               font.family: "omarchy"
-              font.pixelSize: 56
+              font.pixelSize: Math.max(1, root.gridSize - root.gridGap)
               color: root.glowColor
             }
 
-            function trigger(cx, cy) {
-              x = cx - width / 2
-              y = cy - height / 2
+            function trigger(col, row) {
+              x = col * root.gridSize + root.gridGap
+              y = row * root.gridSize + root.gridGap
+              transformOrigin = Item.Center
               burstAnim.restart()
             }
           }
         }
 
         property int burstIndex: 0
-        function spawn(cx, cy) {
+        function spawn(col, row) {
           var item = burstPool.itemAt(burstIndex)
           if (item) {
-            item.trigger(cx, cy)
+            item.trigger(col, row)
             burstIndex = (burstIndex + 1) % 6
           }
         }
@@ -807,6 +804,36 @@ Item {
             }
           }
         }
+
+        function onPointerClicked(mx, my) {
+          if (!root.glow) return
+          var centerCol = Math.floor(mx / root.gridSize)
+          var centerRow = Math.floor(my / root.gridSize)
+          var r = Math.max(1, root.glowRadius)
+
+          // Clicked tile flashes to full peak brightness
+          triggerTile(centerCol, centerRow, 1.0, false)
+
+          // Neighboring tiles flash with radial burst
+          var maxDist = (r + 0.5) * root.gridSize
+          for (var dc = -r; dc <= r; dc++) {
+            for (var dr = -r; dr <= r; dr++) {
+              if (dc === 0 && dr === 0) continue
+              var c = centerCol + dc
+              var rw = centerRow + dr
+              if (c < 0 || rw < 0) continue
+
+              var tileCenterX = c * root.gridSize + root.gridSize / 2
+              var tileCenterY = rw * root.gridSize + root.gridSize / 2
+              var dist = Math.hypot(mx - tileCenterX, my - tileCenterY)
+              if (dist > maxDist) continue
+
+              var norm = dist / maxDist
+              var falloff = Math.cos(norm * (Math.PI / 2))
+              triggerTile(c, rw, Math.min(1.0, root.glowIntensity * 1.5 * falloff), false)
+            }
+          }
+        }
       }
 
       MouseArea {
@@ -826,7 +853,10 @@ Item {
         onClicked: function(mouse) {
           if (!root.glow) return
           if (mouse.button === Qt.LeftButton) {
-            burstLayer.spawn(mouse.x, mouse.y)
+            var col = Math.floor(mouse.x / root.gridSize)
+            var row = Math.floor(mouse.y / root.gridSize)
+            glowController.onPointerClicked(mouse.x, mouse.y)
+            burstLayer.spawn(col, row)
           }
         }
 
