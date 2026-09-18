@@ -117,3 +117,24 @@ omarchy-shell background mosaicBlockSize 8     # block edge in logical pixels
 - Fork of the built-in `omarchy.background` renderer (declared through `omarchy.clonedFrom`). It replaces the default background renderer while enabled.
 - State is persisted to `~/.local/state/omarchy/mozax.json` on every change: IPC-tuned knobs survive a shell restart. Delete that file to fall back to the defaults in `Background.qml`.
 - Uninstall with `omarchy plugin remove rubichandrap.mozax` to restore the default background.
+- Desktop goes black after disabling Mozax? See Troubleshooting below.
+
+## Troubleshooting
+
+### Black desktop after disabling Mozax
+
+Mozax replaces the built-in renderer through `omarchy.clonedFrom`, so enabling it
+switches `omarchy.background` off. The shell restores that built-in only when it
+recorded the switch itself, in `cloneSourceRestores` inside
+`~/.config/omarchy/shell.json`. If `omarchy.background` was already listed in
+`disabledPlugins` when Mozax was enabled, nothing records the restore intent, and
+disabling Mozax leaves the desktop with no background renderer at all — a black
+desktop, not a broken wallpaper or theme.
+
+Check the state and put the built-in renderer back:
+
+```bash
+jq '.plugins, .disabledPlugins, .cloneSourceRestores' ~/.config/omarchy/shell.json
+omarchy plugin enable omarchy.background
+hyprctl layers | grep omarchy-background   # layer is drawn again
+```
