@@ -115,5 +115,5 @@ omarchy-shell background mosaicBlockSize 8     # block edge in logical pixels
 ## Notes
 
 - Fork of the built-in `omarchy.background` renderer (declared through `omarchy.clonedFrom`). It replaces the default background renderer while enabled.
-- State is in-memory: a shell restart returns settings to their defaults (grid on, glow on, mosaic on).
+- State is persisted to `~/.local/state/omarchy/mozax.json` on every change: IPC-tuned knobs survive a shell restart. Delete that file to fall back to the defaults in `Background.qml`.
 - Uninstall with `omarchy plugin remove rubichandrap.mozax` to restore the default background.

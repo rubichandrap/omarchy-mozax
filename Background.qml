@@ -66,9 +66,113 @@ Item {
   property var visualizerValues: []
   readonly property int visualizerBarsCount: 60
   readonly property string cavaConfigFile: stateHome + "/omarchy/mozax-cava.conf"
+
+  // Persisted settings: every knob below is written back to a JSON state file,
+  // so tuning survives a shell restart instead of falling back to the defaults
+  // in this file. Delete the state file to return to the baked-in defaults.
+  readonly property string settingsPath: stateHome + "/omarchy/mozax.json"
+  property bool settingsLoaded: false
+
   function imageUrl(path) {
     return Util.fileUrl(path)
   }
+
+  function settingsSnapshot() {
+    return {
+      version: 1,
+      mosaic: mosaic, mosaicBlock: mosaicBlock,
+      grid: grid, gridSize: gridSize, gridGap: gridGap,
+      gridColor: String(gridColor), gridOpacity: gridOpacity,
+      glow: glow, glowRadius: glowRadius, glowIntensity: glowIntensity,
+      glowDuration: glowDuration, glowTrail: glowTrail,
+      glowUseTheme: glowUseTheme, customGlowColor: String(customGlowColor),
+      glowBorder: glowBorder,
+      visualizer: visualizer, visualizerOpacity: visualizerOpacity,
+      visualizerHeight: visualizerHeight, visualizerWidth: visualizerWidth
+    }
+  }
+
+  function loadSettings(raw) {
+    // FileView can fire onLoaded more than once during startup; only the first
+    // pass may touch the knobs, and only it flips settingsLoaded.
+    if (settingsLoaded) return
+    var parsed = null
+    try { parsed = JSON.parse(String(raw || "")) } catch (e) { parsed = null }
+    if (parsed && typeof parsed === "object") {
+      function boolval(key, fallback) {
+        return typeof parsed[key] === "boolean" ? parsed[key] : fallback
+      }
+      function intval(key, fallback, min) {
+        var v = Number(parsed[key])
+        return isFinite(v) ? Math.max(min, Math.round(v)) : fallback
+      }
+      function realval(key, fallback) {
+        var v = Number(parsed[key])
+        return isFinite(v) ? v : fallback
+      }
+      function unitval(key, fallback) {
+        return Math.max(0, Math.min(1, realval(key, fallback)))
+      }
+      function colorval(key, fallback) {
+        var s = String(parsed[key] || "")
+        return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(s) ? s : fallback
+      }
+
+      mosaic = boolval("mosaic", mosaic)
+      mosaicBlock = intval("mosaicBlock", mosaicBlock, 2)
+      grid = boolval("grid", grid)
+      gridSize = intval("gridSize", gridSize, 4)
+      gridGap = Math.min(intval("gridGap", gridGap, 0), gridSize - 1)
+      gridColor = colorval("gridColor", gridColor)
+      gridOpacity = unitval("gridOpacity", gridOpacity)
+      glow = boolval("glow", glow)
+      glowRadius = intval("glowRadius", glowRadius, 0)
+      glowIntensity = unitval("glowIntensity", glowIntensity)
+      glowDuration = intval("glowDuration", glowDuration, 0)
+      glowTrail = boolval("glowTrail", glowTrail)
+      glowUseTheme = boolval("glowUseTheme", glowUseTheme)
+      customGlowColor = colorval("customGlowColor", customGlowColor)
+      glowBorder = boolval("glowBorder", glowBorder)
+      visualizer = boolval("visualizer", visualizer)
+      visualizerOpacity = unitval("visualizerOpacity", visualizerOpacity)
+      visualizerHeight = intval("visualizerHeight", visualizerHeight, 2)
+      visualizerWidth = unitval("visualizerWidth", visualizerWidth)
+      cavaProc.running = visualizer
+    }
+    settingsLoaded = true
+  }
+
+  function scheduleSettingsSave() {
+    if (!settingsLoaded) return
+    settingsSaveTimer.restart()
+  }
+
+  function flushSettings() {
+    stateFileView.setText(JSON.stringify(settingsSnapshot(), null, 2) + "\n")
+  }
+
+  // Any knob change schedules a debounced write. Changes made while loading are
+  // ignored: settingsLoaded is still false during loadSettings().
+  onMosaicChanged: scheduleSettingsSave()
+  onMosaicBlockChanged: scheduleSettingsSave()
+  onGridChanged: scheduleSettingsSave()
+  onGridSizeChanged: scheduleSettingsSave()
+  onGridGapChanged: scheduleSettingsSave()
+  onGridColorChanged: scheduleSettingsSave()
+  onGridOpacityChanged: scheduleSettingsSave()
+  onGlowChanged: scheduleSettingsSave()
+  onGlowRadiusChanged: scheduleSettingsSave()
+  onGlowIntensityChanged: scheduleSettingsSave()
+  onGlowDurationChanged: scheduleSettingsSave()
+  onGlowTrailChanged: scheduleSettingsSave()
+  onGlowUseThemeChanged: scheduleSettingsSave()
+  onCustomGlowColorChanged: scheduleSettingsSave()
+  onGlowBorderChanged: scheduleSettingsSave()
+  onVisualizerChanged: scheduleSettingsSave()
+  onVisualizerOpacityChanged: scheduleSettingsSave()
+  onVisualizerHeightChanged: scheduleSettingsSave()
+  onVisualizerWidthChanged: scheduleSettingsSave()
+
   signal requestBurst(int col, int row)
   signal requestGlowHover(int x, int y)
 
@@ -203,6 +307,24 @@ Item {
     onTriggered: {
       if (root.visualizer && !cavaProc.running) cavaProc.running = true
     }
+  }
+
+  FileView {
+    id: stateFileView
+    path: root.settingsPath
+    atomicWrites: true
+    watchChanges: false
+    printErrors: false
+    onLoaded: root.loadSettings(text())
+    // First run: the file does not exist yet, keep the baked-in defaults.
+    onLoadFailed: root.loadSettings("")
+  }
+
+  Timer {
+    id: settingsSaveTimer
+    interval: 200
+    repeat: false
+    onTriggered: root.flushSettings()
   }
 
   IpcHandler {
@@ -414,7 +536,10 @@ Item {
     }
   }
 
-  Component.onCompleted: refreshBackground()
+  Component.onCompleted: {
+    refreshBackground()
+    stateFileView.reload()
+  }
 
   Variants {
     model: Quickshell.screens
