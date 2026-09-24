@@ -53,6 +53,13 @@ omarchy restart shell
 
 ## Use
 
+### Bar widget
+
+When the plugin is enabled, a grid icon appears in the bar's right section.
+Click it to open a popup with live controls for every option below — no
+shell commands required. Changes apply instantly and persist across
+restarts.
+
 ### Glow Controls
 
 The tile glow is enabled by default. You can adjust its behavior dynamically via IPC:

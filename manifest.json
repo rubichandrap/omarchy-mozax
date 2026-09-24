@@ -2,14 +2,24 @@
   "schemaVersion": 1,
   "id": "rubichandrap.mozax",
   "name": "Mozax",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "rubichandrap",
   "description": "Desktop background renderer for Omarchy with grid overlay, cursor-hover tile spotlight, click mosaic logo burst, and audio visualizer",
   "kinds": [
-    "service"
+    "service",
+    "bar-widget"
   ],
+  "keepLoaded": true,
   "entryPoints": {
-    "service": "Background.qml"
+    "service": "Background.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Mozax",
+    "description": "Control glow, grid, mosaic and visualizer effects",
+    "category": "Desktop",
+    "allowMultiple": false,
+    "defaultSection": "right"
   },
   "omarchy": {
     "clonedFrom": "omarchy.background"

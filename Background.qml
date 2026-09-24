@@ -168,7 +168,13 @@ Item {
   onGlowUseThemeChanged: scheduleSettingsSave()
   onCustomGlowColorChanged: scheduleSettingsSave()
   onGlowBorderChanged: scheduleSettingsSave()
-  onVisualizerChanged: scheduleSettingsSave()
+  // Cava follows the knob, not just the IPC entry points: the bar widget
+  // flips `visualizer` directly, and loadSettings still arms cava itself
+  // while settingsLoaded is false.
+  onVisualizerChanged: {
+    scheduleSettingsSave()
+    if (settingsLoaded) cavaProc.running = visualizer
+  }
   onVisualizerOpacityChanged: scheduleSettingsSave()
   onVisualizerHeightChanged: scheduleSettingsSave()
   onVisualizerWidthChanged: scheduleSettingsSave()
