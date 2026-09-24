@@ -15,9 +15,9 @@ BarWidget {
   property bool popupOpen: false
   function close() { popupOpen = false }
 
-  function syncFields() {
-    if (!mozax) return
-    widthDropdown.value = visualizerWidthValue()
+  function visualizerVariantValue() {
+    if (!mozax) return "bars"
+    return mozax.visualizerVariant === "mosaic" ? "mosaic" : "bars"
   }
 
   function visualizerWidthValue() {
@@ -30,10 +30,6 @@ BarWidget {
   function isHex(s) {
     return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(String(s || "").trim())
   }
-
-  onBarChanged: if (bar) syncFields()
-  onPopupOpenChanged: if (popupOpen) syncFields()
-  Component.onCompleted: syncFields()
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -112,6 +108,12 @@ BarWidget {
     readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, Color.popups.border, Style.normalBorderWidth)
 
     signal changed(string value)
+
+    function syncSelection() {
+      if (popup.opened) optionList.currentIndex = Math.max(0, optionList.indexOfValue(value))
+    }
+
+    onValueChanged: Qt.callLater(syncSelection)
 
     function optionValue(o) {
       return (o && typeof o === "object") ? String(o.value) : String(o)
@@ -238,7 +240,7 @@ BarWidget {
 
           onOpened: {
             reposition()
-            optionList.currentIndex = Math.max(0, optionList.indexOfValue(dd.value))
+            dd.syncSelection()
             optionList.forceActiveFocus()
           }
 
@@ -275,7 +277,6 @@ BarWidget {
             function selectCurrent() {
               if (currentIndex < 0 || currentIndex >= dd.options.length) return
               var v = dd.optionValue(dd.options[currentIndex])
-              dd.value = v
               dd.changed(v)
               popup.close()
             }
@@ -956,7 +957,6 @@ BarWidget {
           onClicked: {
             if (!root.mozax) return
             root.mozax.glowUseTheme = !root.mozax.glowUseTheme
-            root.syncFields()
           }
         }
 
@@ -1046,13 +1046,13 @@ BarWidget {
           onApplied: function(hex) { if (root.mozax) root.mozax.gridColor = hex }
         }
 
-        // ---------- Mosaic ----------
+        // ---------- Wallpaper pixelation ----------
         PanelSeparator {
           foreground: root.fg
         }
 
         PanelSectionHeader {
-          text: "MOSAIC"
+          text: "WALLPAPER PIXELATION"
           foreground: root.fg
           fontFamily: root.ff
         }
@@ -1093,12 +1093,27 @@ BarWidget {
 
         Toggle {
           width: parent.width
-          label: "Audio tiles"
-          description: "Spectrum bars along the bottom"
+          label: "Audio visualizer"
+          description: root.mozax && root.mozax.visualizerVariant === "mosaic"
+            ? "Fading tile heatmap"
+            : "Spectrum bars along the bottom"
           checked: root.mozax ? root.mozax.visualizer : true
           foreground: root.fg
           fontFamily: root.ff
           onClicked: if (root.mozax) root.mozax.visualizer = !root.mozax.visualizer
+        }
+
+        WindowDropdown {
+          id: variantDropdown
+          visible: root.mozax && root.mozax.visualizer
+          width: parent.width
+          label: "Effect"
+          value: root.visualizerVariantValue()
+          options: [
+            { value: "bars", label: "Bars" },
+            { value: "mosaic", label: "Mosaic" }
+          ]
+          onChanged: function(v) { if (root.mozax) root.mozax.visualizerVariant = v }
         }
 
         SliderControl {
@@ -1114,7 +1129,23 @@ BarWidget {
         }
 
         SliderControl {
-          visible: root.mozax && root.mozax.visualizer
+          visible: root.mozax && root.mozax.visualizer && root.mozax.visualizerVariant === "mosaic"
+          barRef: root.bar
+          label: "Mosaic height"
+          valueText: (root.mozax ? root.mozax.visualizerMosaicRows : 4) + " rows"
+          boundValue: root.mozax ? root.mozax.visualizerMosaicRows : 4
+          minimum: 1
+          maximum: root.mozax ? root.mozax.visualizerMosaicRowsMax : 12
+          step: 1
+          integer: true
+          onApplied: function(v) {
+            if (!root.mozax) return
+            root.mozax.visualizerMosaicRows = Math.max(1, Math.min(root.mozax.visualizerMosaicRowsMax, Math.round(v)))
+          }
+        }
+
+        SliderControl {
+          visible: root.mozax && root.mozax.visualizer && root.mozax.visualizerVariant === "bars"
           barRef: root.bar
           label: "Max height"
           valueText: (root.mozax ? root.mozax.visualizerHeight : 16) + " tiles"

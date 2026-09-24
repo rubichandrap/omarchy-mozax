@@ -1,7 +1,7 @@
 # omarchy-mozax
 
-Grid overlay, interactive cursor-hover tile glow, and optional mosaic pixelation
-for the Omarchy desktop wallpaper.
+Grid overlay, interactive cursor-hover tile glow, optional wallpaper pixelation,
+and bar or Mosaic audio visualization for the Omarchy desktop.
 
 The wallpaper itself remains untouched — the grid and dynamic lighting effects
 draw directly on top of it. Theme switches and background cycling continue working
@@ -21,18 +21,18 @@ as normal.
 
   ![Cursor-Hover Tile Glow](assets/glow.png)
 
-- **Audio Tile Visualizer**: Spectrum equalizer along the bottom edge that pulses to
-  system audio, rising through the grid into discrete mosaic blocks rendered in your Omarchy theme colors.
+- **Audio Visualizer**: Choose spectrum bars or Mosaic tiles. Mosaic keeps
+  a fixed heatmap of frequency-sensitive cells that ignite, brighten, and decay with system audio.
 
-  ![Audio Tile Visualizer](assets/visualizer.png)
+  ![Bars Audio Visualizer](assets/visualizer.png)
 
 - **Grid Overlay**: Configurable line pitch (16px/32px default), gap width, color, and opacity.
 
   ![Grid Overlay](assets/grid.png)
 
-- **Mosaic Pixelation**: Optional retro blocky wallpaper variant.
+- **Wallpaper Pixelation**: Optional retro blocky wallpaper variant.
 
-  ![Mosaic Pixelation](assets/mosaic.png)
+  ![Wallpaper Pixelation](assets/mosaic.png)
 
 - **Glowing Trail**: Leaves a smooth, fading wake behind the cursor (configurable duration
   or instant follow).
@@ -77,14 +77,18 @@ omarchy-shell background glowBorder true       # subtle illuminated tile border 
 
 ### Audio Visualizer Controls
 
-The bottom tile visualizer is enabled by default (powered by Cava, only active when audio plays):
+The bottom audio visualizer is enabled by default and powered by Cava:
 
 ```bash
-omarchy-shell background visualizerToggle         # toggle visualizer on or off
-omarchy-shell background visualizerStatus         # state, opacity, max height, width
-omarchy-shell background visualizerOpacity 0.65   # tile visualizer opacity (0.0 - 1.0)
-omarchy-shell background visualizerHeight 16      # maximum visualizer height in tiles
-omarchy-shell background visualizerWidth 1.0      # width ratio (1.0 / full, 0.5 / 50%, or default)
+omarchy-shell background visualizerToggle          # toggle visualizer on or off
+omarchy-shell background visualizerStatus          # state, opacity, bar height, width
+omarchy-shell background visualizerVariant bars    # "bars" or "mosaic"
+omarchy-shell background visualizerVariantStatus   # current visualizer variant
+omarchy-shell background visualizerOpacity 0.65    # visualizer opacity (0.0 - 1.0)
+omarchy-shell background visualizerMosaicRows 4    # Mosaic height in rows (1 - 12)
+omarchy-shell background visualizerMosaicRowsStatus # current Mosaic row count
+omarchy-shell background visualizerHeight 16       # maximum Bars height in tiles
+omarchy-shell background visualizerWidth 1.0       # width ratio (1.0 / full, 0.5 / 50%, or default)
 ```
 
 ### Grid Overlay Controls
@@ -100,9 +104,9 @@ omarchy-shell background gridOpacity 0.5       # strength of the bands (0-1)
 omarchy-shell background gridColor "#000000"   # band colour
 ```
 
-### Mosaic Pixelation Controls
+### Wallpaper Pixelation Controls
 
-Mosaic pixelation is enabled by default:
+Wallpaper pixelation is enabled by default:
 
 ```bash
 omarchy-shell background mosaicToggle          # mosaic pixelation on or off

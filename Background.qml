@@ -57,14 +57,16 @@ Item {
   property color glowBorderColor: glowUseTheme ? brightThemeAccent : customGlowColor
 
   // Audio Visualizer Effect:
-  // Tile spectrum analyzer along the bottom of the screen, rising into mosaic
-  // tiles that pulse with audio frequencies and respect the Omarchy theme colors.
+  // Spectrum bars or a fading tile heatmap along the bottom edge.
   property bool visualizer: true
+  property string visualizerVariant: "bars"
   property real visualizerOpacity: 0.65     // Tile visualizer opacity (0.0 to 1.0)
   property int visualizerHeight: 16         // Maximum visualizer height in tiles
+  property int visualizerMosaicRows: 4
   property real visualizerWidth: 0.0        // Width ratio (0.0 = default auto, 0.05 to 1.0 = fraction of screen width)
   property var visualizerValues: []
   readonly property int visualizerBarsCount: 60
+  readonly property int visualizerMosaicRowsMax: 12
   readonly property string cavaConfigFile: stateHome + "/omarchy/mozax-cava.conf"
 
   // Persisted settings: every knob below is written back to a JSON state file,
@@ -79,7 +81,7 @@ Item {
 
   function settingsSnapshot() {
     return {
-      version: 1,
+      version: 3,
       mosaic: mosaic, mosaicBlock: mosaicBlock,
       grid: grid, gridSize: gridSize, gridGap: gridGap,
       gridColor: String(gridColor), gridOpacity: gridOpacity,
@@ -87,7 +89,8 @@ Item {
       glowDuration: glowDuration, glowTrail: glowTrail,
       glowUseTheme: glowUseTheme, customGlowColor: String(customGlowColor),
       glowBorder: glowBorder,
-      visualizer: visualizer, visualizerOpacity: visualizerOpacity,
+      visualizer: visualizer, visualizerVariant: visualizerVariant,
+      visualizerOpacity: visualizerOpacity, visualizerMosaicRows: visualizerMosaicRows,
       visualizerHeight: visualizerHeight, visualizerWidth: visualizerWidth
     }
   }
@@ -134,7 +137,9 @@ Item {
       customGlowColor = colorval("customGlowColor", customGlowColor)
       glowBorder = boolval("glowBorder", glowBorder)
       visualizer = boolval("visualizer", visualizer)
+      visualizerVariant = String(parsed.visualizerVariant || "").trim().toLowerCase() === "mosaic" ? "mosaic" : "bars"
       visualizerOpacity = unitval("visualizerOpacity", visualizerOpacity)
+      visualizerMosaicRows = Math.min(visualizerMosaicRowsMax, intval("visualizerMosaicRows", visualizerMosaicRows, 1))
       visualizerHeight = intval("visualizerHeight", visualizerHeight, 2)
       visualizerWidth = unitval("visualizerWidth", visualizerWidth)
       cavaProc.running = visualizer
@@ -175,7 +180,9 @@ Item {
     scheduleSettingsSave()
     if (settingsLoaded) cavaProc.running = visualizer
   }
+  onVisualizerVariantChanged: scheduleSettingsSave()
   onVisualizerOpacityChanged: scheduleSettingsSave()
+  onVisualizerMosaicRowsChanged: scheduleSettingsSave()
   onVisualizerHeightChanged: scheduleSettingsSave()
   onVisualizerWidthChanged: scheduleSettingsSave()
 
@@ -426,6 +433,15 @@ Item {
         + " " + root.visualizerHeight + " " + w
     }
 
+    function visualizerVariant(value: string): void {
+      var variant = String(value || "").trim().toLowerCase()
+      if (variant === "bars" || variant === "mosaic") root.visualizerVariant = variant
+    }
+
+    function visualizerVariantStatus(): string {
+      return root.visualizerVariant
+    }
+
     function visualizerWidth(value: string): void {
       var s = String(value || "").trim().toLowerCase()
       if (s === "default" || s === "auto" || s === "0" || s === "0.0") {
@@ -449,6 +465,16 @@ Item {
       var n = parseInt(value)
       if (n >= 2) root.visualizerHeight = n
     }
+
+    function visualizerMosaicRows(value: string): void {
+      var n = parseInt(value)
+      if (n >= 1) root.visualizerMosaicRows = Math.min(n, root.visualizerMosaicRowsMax)
+    }
+
+    function visualizerMosaicRowsStatus(): string {
+      return String(root.visualizerMosaicRows)
+    }
+
     // Mozax additions: mosaic toggle, block size and status.
     function mosaicToggle(): void {
       root.mosaic = !root.mosaic
@@ -643,7 +669,7 @@ Item {
         }
       }
 
-      // Audio visualizer mosaic tiles along the bottom
+      // Audio visualizer along the bottom
       Item {
         id: visualizerLayer
         anchors.fill: parent
@@ -661,6 +687,15 @@ Item {
         readonly property int startCol: Math.max(0, Math.floor((totalCols - totalBarsCols) / 2))
         readonly property int startOffset: startCol * root.gridSize
         readonly property int bottomOffset: panel.height % root.gridSize
+        readonly property int mosaicMaxCols: Math.max(0, Math.floor(totalCols / 2))
+        readonly property int mosaicAvailableCols: Math.min(root.visualizerBarsCount, mosaicMaxCols)
+        readonly property int mosaicCols: customMode
+          ? Math.max(0, Math.min(mosaicAvailableCols, Math.round(mosaicAvailableCols * root.visualizerWidth)))
+          : mosaicAvailableCols
+        readonly property real mosaicBoardWidth: customMode ? panel.width * root.visualizerWidth : panel.width
+        readonly property real mosaicCellPitch: mosaicCols > 0 ? mosaicBoardWidth / mosaicCols : 0
+        readonly property int mosaicRowPitch: Math.max(root.gridSize, Math.min(32, mosaicCellPitch / 2))
+        readonly property int mosaicRows: Math.max(1, Math.min(root.visualizerMosaicRows, Math.floor(panel.height / root.gridSize)))
 
         function sampleValue(index, count) {
           var vals = root.visualizerValues
@@ -676,7 +711,7 @@ Item {
         }
 
         Repeater {
-          model: visualizerLayer.barCount
+          model: root.visualizerVariant === "bars" ? visualizerLayer.barCount : 0
 
           Rectangle {
             id: vizBar
@@ -706,6 +741,31 @@ Item {
               GradientStop { position: 1.0; color: Qt.darker(Color.accent, 1.25) }
             }
             opacity: root.visualizerOpacity
+          }
+        }
+
+        Loader {
+          id: mosaicLoader
+          anchors.fill: parent
+          active: root.visualizer && root.visualizerVariant === "mosaic"
+          sourceComponent: mosaicVisualizerComponent
+        }
+
+        Component {
+          id: mosaicVisualizerComponent
+
+          MosaicVisualizer {
+            anchors.fill: parent
+            values: root.visualizerValues
+            columns: visualizerLayer.mosaicCols
+            rows: visualizerLayer.mosaicRows
+            cellPitch: visualizerLayer.mosaicCellPitch
+            rowPitch: visualizerLayer.mosaicRowPitch
+            gridGap: root.gridGap
+            bottomOffset: visualizerLayer.bottomOffset
+            visualizerOpacity: root.visualizerOpacity
+            accentColor: Color.accent
+            bandCount: root.visualizerBarsCount
           }
         }
       }
