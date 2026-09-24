@@ -95,6 +95,247 @@ BarWidget {
     }
   }
 
+  component WindowDropdown: Item {
+    id: dd
+
+    property string label: ""
+    property string value: ""
+    property var options: []
+    property color foreground: Color.popups.text
+    property color background: Color.popups.background
+    property color popupBorder: Color.popups.border
+    property color accent: Color.accent
+    property string fontFamily: Style.font.family
+    property int rowHeight: Style.spacing.controlHeight
+    property int popupRowHeight: Style.spacing.popupRowHeight
+    property bool showLabel: true
+    readonly property var popupBorderSpec: Border.localOrSurfaceSpec("popups", "border", popupBorder, Color.popups.border, Style.normalBorderWidth)
+
+    signal changed(string value)
+
+    function optionValue(o) {
+      return (o && typeof o === "object") ? String(o.value) : String(o)
+    }
+
+    function optionLabel(o) {
+      return (o && typeof o === "object") ? String(o.label) : String(o)
+    }
+
+    function currentLabel() {
+      for (var i = 0; i < options.length; i++) {
+        if (optionValue(options[i]) === value) return optionLabel(options[i])
+      }
+      return value
+    }
+
+    implicitWidth: Style.spacing.dropdownWidth
+    implicitHeight: showLabel && label !== "" ? rowHeight + Style.spacing.huge : rowHeight
+
+    Column {
+      anchors.fill: parent
+      spacing: Style.spacing.labelGap
+
+      Text {
+        textFormat: Text.PlainText
+        visible: dd.showLabel && dd.label !== ""
+        text: dd.label
+        color: Qt.darker(dd.foreground, 1.4)
+        font.family: dd.fontFamily
+        font.pixelSize: Style.font.caption
+        font.bold: true
+      }
+
+      BorderSurface {
+        id: trigger
+        width: parent.width
+        height: dd.rowHeight
+        radius: Style.cornerRadius
+
+        readonly property bool _focused: trigger.activeFocus
+        readonly property bool _hot: triggerHover.hovered
+        readonly property var _borderSpec: Border.controlSpec(trigger._focused ? "focus" : (trigger._hot ? "hover-cursor" : "normal"), dd.foreground, dd.accent)
+
+        color: Style.controlFill(trigger._focused, trigger._hot, dd.foreground, dd.accent)
+        borderSpec: _borderSpec
+        activeFocusOnTab: true
+
+        HoverHandler {
+          id: triggerHover
+        }
+
+        Keys.onPressed: function(event) {
+          if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter
+              || event.key === Qt.Key_Space || event.key === Qt.Key_Down) {
+            popup.opened ? popup.close() : popup.open()
+            event.accepted = true
+          } else if (event.key === Qt.Key_Escape && popup.opened) {
+            popup.close()
+            event.accepted = true
+          }
+        }
+
+        Text {
+          anchors.left: parent.left
+          anchors.right: chevron.left
+          anchors.verticalCenter: parent.verticalCenter
+          anchors.leftMargin: trigger.borderLeft + Style.spacing.controlPaddingX
+          anchors.rightMargin: trigger.borderRight + Style.spacing.md
+          text: dd.currentLabel()
+          color: dd.foreground
+          font.family: dd.fontFamily
+          font.pixelSize: Style.font.body
+          elide: Text.ElideRight
+        }
+
+        Text {
+          id: chevron
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          anchors.rightMargin: trigger.borderRight + Style.spacing.controlGap
+          text: "󰅀"
+          color: Qt.darker(dd.foreground, 1.2)
+          font.family: dd.fontFamily
+          font.pixelSize: Style.font.body
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          cursorShape: Qt.PointingHandCursor
+          onClicked: {
+            trigger.forceActiveFocus()
+            popup.opened ? popup.close() : popup.open()
+          }
+        }
+
+        Popup {
+          id: popup
+          parent: trigger.Window.window ? trigger.Window.window.contentItem : trigger
+          property real _anchorX: 0
+          property real _anchorY: 0
+
+          function reposition() {
+            if (!parent) return
+            var p = trigger.mapToItem(parent, 0, trigger.height + Style.spacing.xxs)
+            var below = parent.height - p.y
+            var above = p.y - Style.spacing.xxs
+            _anchorX = Math.max(Style.space(8), Math.min(p.x, parent.width - width - Style.space(8)))
+            _anchorY = below >= implicitHeight
+              ? p.y
+              : Math.max(Style.space(8), above >= implicitHeight ? above - implicitHeight : above)
+          }
+
+          x: _anchorX
+          y: _anchorY
+          width: trigger.width
+          implicitHeight: Math.min(dd.options.length * dd.popupRowHeight + Math.max(0, dd.options.length - 1) * Style.spacing.labelGap + Style.spacing.xxs,
+                                   dd.popupRowHeight * 8 + 7 * Style.spacing.labelGap + Style.spacing.xxs)
+          padding: Style.spacing.hairline
+          leftPadding: Border.left(dd.popupBorderSpec) + Style.spacing.hairline
+          rightPadding: Border.right(dd.popupBorderSpec) + Style.spacing.hairline
+          topPadding: Border.top(dd.popupBorderSpec) + Style.spacing.hairline
+          bottomPadding: Border.bottom(dd.popupBorderSpec) + Style.spacing.hairline
+          focus: true
+
+          onOpened: {
+            reposition()
+            optionList.currentIndex = Math.max(0, optionList.indexOfValue(dd.value))
+            optionList.forceActiveFocus()
+          }
+
+          Connections {
+            target: trigger
+            function onXChanged() { popup.reposition() }
+            function onYChanged() { popup.reposition() }
+            function onWidthChanged() { popup.reposition() }
+            function onHeightChanged() { popup.reposition() }
+          }
+
+          background: BorderSurface {
+            color: dd.background
+            borderSpec: dd.popupBorderSpec
+            radius: Style.cornerRadius
+          }
+
+          contentItem: ListView {
+            id: optionList
+            spacing: Style.spacing.labelGap
+            implicitHeight: contentHeight
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            model: dd.options
+            currentIndex: -1
+
+            function indexOfValue(v) {
+              for (var i = 0; i < dd.options.length; i++) {
+                if (dd.optionValue(dd.options[i]) === v) return i
+              }
+              return -1
+            }
+
+            function selectCurrent() {
+              if (currentIndex < 0 || currentIndex >= dd.options.length) return
+              var v = dd.optionValue(dd.options[currentIndex])
+              dd.value = v
+              dd.changed(v)
+              popup.close()
+            }
+
+            Keys.priority: Keys.BeforeItem
+            Keys.onPressed: function(event) {
+              if (event.key === Qt.Key_Escape) {
+                popup.close()
+                event.accepted = true
+              } else if (event.key === Qt.Key_Down || event.text === "j") {
+                optionList.currentIndex = Math.min(dd.options.length - 1, optionList.currentIndex + 1)
+                event.accepted = true
+              } else if (event.key === Qt.Key_Up || event.text === "k") {
+                optionList.currentIndex = Math.max(0, optionList.currentIndex - 1)
+                event.accepted = true
+              } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                optionList.selectCurrent()
+                event.accepted = true
+              }
+            }
+
+            delegate: Rectangle {
+              required property var modelData
+              required property int index
+              width: optionList.width
+              height: dd.popupRowHeight
+              color: index === optionList.currentIndex
+                ? Style.hoverFillFor(dd.foreground, dd.accent)
+                : "transparent"
+
+              Text {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: Style.spacing.controlPaddingX
+                anchors.rightMargin: Style.spacing.controlPaddingX
+                text: dd.optionLabel(modelData)
+                color: index === optionList.currentIndex ? Style.hoverStateColor(dd.foreground, dd.accent) : dd.foreground
+                font.family: dd.fontFamily
+                font.pixelSize: Style.font.body
+                elide: Text.ElideRight
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onPositionChanged: optionList.currentIndex = index
+                onClicked: {
+                  optionList.currentIndex = index
+                  optionList.selectCurrent()
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   component ColorPicker: Column {
     id: cp
 
@@ -885,7 +1126,7 @@ BarWidget {
           onApplied: function(v) { if (root.mozax) root.mozax.visualizerHeight = Math.max(2, Math.round(v)) }
         }
 
-        Dropdown {
+        WindowDropdown {
           id: widthDropdown
           visible: root.mozax && root.mozax.visualizer
           width: parent.width
