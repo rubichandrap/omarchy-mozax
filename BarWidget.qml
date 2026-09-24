@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Window
 import qs.Ui
 import qs.Commons
 
@@ -16,8 +17,6 @@ BarWidget {
 
   function syncFields() {
     if (!mozax) return
-    glowColorField.text = String(mozax.customGlowColor)
-    gridColorField.text = String(mozax.gridColor)
     widthDropdown.value = visualizerWidthValue()
   }
 
@@ -93,6 +92,482 @@ BarWidget {
       integer: sc.integer
       onMoved: function(v) { sc.applied(v) }
       onReleased: function(v) { sc.applied(v) }
+    }
+  }
+
+  component ColorPicker: Column {
+    id: cp
+
+    property string label: ""
+    property string value: "#000000"
+    property color foreground: Color.foreground
+    property color accent: Color.accent
+    property string fontFamily: Style.font.family
+    property bool hasCursor: false
+
+    signal applied(string hex)
+
+    readonly property color previewColor: isHex(value) ? value : "#000000"
+    readonly property real triggerHeight: Style.spacing.controlHeight
+
+    property real hue: 0
+    property real sat: 0
+    property real val: 1
+    property bool _loading: false
+
+    width: parent ? parent.width : implicitWidth
+    spacing: Style.spacing.labelGap
+
+    function isHex(s) {
+      return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(String(s || "").trim())
+    }
+
+    function normalizeHex(s) {
+      var t = String(s || "").trim()
+      if (t.charAt(0) !== "#") t = "#" + t
+      if (t.length === 4) t = "#" + t[1] + t[1] + t[2] + t[2] + t[3] + t[3]
+      return t
+    }
+
+    function rgbToHex(r, g, b) {
+      function ch(n) {
+        var v = Math.round(Math.max(0, Math.min(1, n)) * 255)
+        return (v < 16 ? "0" : "") + v.toString(16)
+      }
+      return ("#" + ch(r) + ch(g) + ch(b)).toLowerCase()
+    }
+
+    function hexToRgb(hex) {
+      var h = normalizeHex(hex).slice(1, 7)
+      return {
+        r: parseInt(h.substr(0, 2), 16) / 255,
+        g: parseInt(h.substr(2, 2), 16) / 255,
+        b: parseInt(h.substr(4, 2), 16) / 255
+      }
+    }
+
+    function hsvToRgb(h, s, v) {
+      h = ((h % 360) + 360) % 360
+      var c = v * s
+      var x = c * (1 - Math.abs((h / 60) % 2 - 1))
+      var m = v - c
+      var r = 0, g = 0, b = 0
+      if (h < 60) { r = c; g = x }
+      else if (h < 120) { r = x; g = c }
+      else if (h < 180) { g = c; b = x }
+      else if (h < 240) { g = x; b = c }
+      else if (h < 300) { r = x; b = c }
+      else { r = c; b = x }
+      return { r: r + m, g: g + m, b: b + m }
+    }
+
+    function rgbToHsv(r, g, b) {
+      var max = Math.max(r, g, b)
+      var min = Math.min(r, g, b)
+      var d = max - min
+      var h = 0
+      if (d > 0) {
+        if (max === r) h = 60 * (((g - b) / d) % 6)
+        else if (max === g) h = 60 * ((b - r) / d + 2)
+        else h = 60 * ((r - g) / d + 4)
+      }
+      if (h < 0) h += 360
+      return { h: h, s: max === 0 ? 0 : d / max, v: max }
+    }
+
+    function hsvToHex(h, s, v) {
+      var c = hsvToRgb(h, s, v)
+      return rgbToHex(c.r, c.g, c.b)
+    }
+
+    function loadFromValue(hex) {
+      if (!isHex(hex)) return
+      _loading = true
+      var rgb = hexToRgb(hex)
+      var hsv = rgbToHsv(rgb.r, rgb.g, rgb.b)
+      hue = hsv.h
+      sat = hsv.s
+      val = hsv.v
+      hexField.text = normalizeHex(hex).toLowerCase()
+      _loading = false
+      svCanvas.requestPaint()
+    }
+
+    function commit(h, s, v) {
+      if (_loading) return
+      hue = h
+      sat = s
+      val = v
+      var hex = hsvToHex(h, s, v)
+      hexField.text = hex
+      applied(hex)
+      svCanvas.requestPaint()
+    }
+
+    onValueChanged: loadFromValue(value)
+    Component.onCompleted: loadFromValue(value)
+
+    readonly property var presets: [
+      { value: "#000000", label: "Black" },
+      { value: "#ffffff", label: "White" },
+      { value: Color.foreground, label: "Foreground" },
+      { value: Color.background, label: "Background" },
+      { value: Color.accent, label: "Accent" },
+      { value: Color.muted, label: "Muted" },
+      { value: Color.urgent, label: "Urgent" },
+      { value: "#f38ba8", label: "Red" },
+      { value: "#fab387", label: "Peach" },
+      { value: "#f9e2af", label: "Yellow" },
+      { value: "#a6e3a1", label: "Green" },
+      { value: "#94e2d5", label: "Teal" },
+      { value: "#89b4fa", label: "Blue" },
+      { value: "#cba6f7", label: "Mauve" },
+      { value: "#f5c2e7", label: "Pink" },
+      { value: "#585b70", label: "Surface" }
+    ]
+
+    Text {
+      textFormat: Text.PlainText
+      visible: cp.label !== ""
+      text: cp.label
+      color: Qt.darker(cp.foreground, 1.4)
+      font.family: cp.fontFamily
+      font.pixelSize: Style.font.bodySmall
+    }
+
+    Row {
+      id: triggerRow
+      width: parent.width
+      height: cp.triggerHeight
+      spacing: Style.spacing.controlGap
+
+      BorderSurface {
+        id: swatch
+        width: cp.triggerHeight
+        height: cp.triggerHeight
+        radius: Style.cornerRadius
+        color: cp.previewColor
+        borderSpec: Border.controlSpec(
+          swatchHover.hovered || swatchMouse.containsMouse || cp.hasCursor ? "hover-cursor" : "normal",
+          cp.foreground, cp.accent)
+
+        HoverHandler { id: swatchHover }
+        MouseArea {
+          id: swatchMouse
+          anchors.fill: parent
+          hoverEnabled: true
+          cursorShape: Qt.PointingHandCursor
+          onClicked: {
+            loadFromValue(cp.value)
+            pickerPopup.open()
+          }
+        }
+      }
+
+      TextField {
+        id: hexField
+        width: parent.width - swatch.width - parent.spacing
+        height: cp.triggerHeight
+        text: cp.isHex(cp.value) ? cp.normalizeHex(cp.value).toLowerCase() : "#000000"
+        placeholderText: "#000000"
+        foreground: cp.foreground
+        validator: RegularExpressionValidator {
+          regularExpression: /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+        }
+        onEditingFinished: {
+          if (!cp.isHex(text) && !cp.isHex("#" + text)) {
+            text = cp.isHex(cp.value) ? cp.normalizeHex(cp.value).toLowerCase() : "#000000"
+            return
+          }
+          var hex = cp.normalizeHex(text).toLowerCase()
+          text = hex
+          var rgb = cp.hexToRgb(hex)
+          var hsv = cp.rgbToHsv(rgb.r, rgb.g, rgb.b)
+          cp._loading = true
+          cp.hue = hsv.h
+          cp.sat = hsv.s
+          cp.val = hsv.v
+          cp._loading = false
+          cp.applied(hex)
+          svCanvas.requestPaint()
+        }
+      }
+    }
+
+    Popup {
+      id: pickerPopup
+      // Reparent to the window so the Flickable clip can't cut the popup.
+      parent: triggerRow.Window.window ? triggerRow.Window.window.contentItem : triggerRow
+      property real _anchorX: 0
+      property real _anchorY: 0
+
+      function reposition() {
+        if (!parent) return
+        var p = triggerRow.mapToItem(parent, 0, triggerRow.height + Style.spacing.xxs)
+        _anchorX = Math.max(Style.space(8), Math.min(p.x, parent.width - width - Style.space(8)))
+        _anchorY = Math.max(Style.space(8), Math.min(p.y, parent.height - height - Style.space(8)))
+      }
+
+      x: _anchorX
+      y: _anchorY
+      width: triggerRow.width
+      padding: Style.spacing.hairline
+      leftPadding: Border.left(cp.popupBorderSpec) + Style.spacing.lg
+      rightPadding: Border.right(cp.popupBorderSpec) + Style.spacing.lg
+      topPadding: Border.top(cp.popupBorderSpec) + Style.spacing.lg
+      bottomPadding: Border.bottom(cp.popupBorderSpec) + Style.spacing.lg
+      focus: true
+
+      readonly property var popupBorderSpec: Border.localOrSurfaceSpec(
+        "popups", "border", Color.popups.border, Color.popups.border, Math.max(1, Style.normalBorderWidth))
+
+      Connections {
+        target: triggerRow
+        function onXChanged() { pickerPopup.reposition() }
+        function onYChanged() { pickerPopup.reposition() }
+        function onWidthChanged() { pickerPopup.reposition() }
+        function onHeightChanged() { pickerPopup.reposition() }
+      }
+
+      background: BorderSurface {
+        color: Color.popups.background
+        borderSpec: pickerPopup.popupBorderSpec
+        radius: Style.cornerRadius
+      }
+
+      onOpened: {
+        reposition()
+        loadFromValue(cp.value)
+      }
+
+      contentItem: Column {
+        spacing: Style.spacing.sm
+        width: pickerPopup.width - pickerPopup.leftPadding - pickerPopup.rightPadding
+
+        Item {
+          width: parent.width
+          height: Style.space(28)
+
+          BorderSurface {
+            id: previewSwatch
+            anchors.left: parent.left
+            anchors.right: previewHex.left
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.rightMargin: Style.spacing.controlGap
+            height: Style.space(24)
+            radius: Style.cornerRadius
+            color: cp.hsvToHex(cp.hue, cp.sat, cp.val)
+            borderSpec: Border.controlSpec("normal", cp.foreground, cp.accent)
+          }
+
+          Text {
+            id: previewHex
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            textFormat: Text.PlainText
+            text: cp.hsvToHex(cp.hue, cp.sat, cp.val)
+            color: cp.foreground
+            font.family: cp.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            font.bold: true
+          }
+        }
+
+        Canvas {
+          id: svCanvas
+          width: parent.width
+          height: Style.space(84)
+          onPaint: {
+            var ctx = getContext("2d")
+            var w = width
+            var h = height
+            ctx.clearRect(0, 0, w, h)
+            var pure = cp.hsvToRgb(cp.hue, 1, 1)
+            ctx.fillStyle = cp.rgbToHex(pure.r, pure.g, pure.b)
+            ctx.fillRect(0, 0, w, h)
+            var gw = ctx.createLinearGradient(0, 0, w, 0)
+            gw.addColorStop(0, "rgba(255,255,255,1)")
+            gw.addColorStop(1, "rgba(255,255,255,0)")
+            ctx.fillStyle = gw
+            ctx.fillRect(0, 0, w, h)
+            var gh = ctx.createLinearGradient(0, 0, 0, h)
+            gh.addColorStop(0, "rgba(0,0,0,0)")
+            gh.addColorStop(1, "rgba(0,0,0,1)")
+            ctx.fillStyle = gh
+            ctx.fillRect(0, 0, w, h)
+          }
+
+          BorderSurface {
+            anchors.fill: parent
+            color: "transparent"
+            radius: Style.cornerRadius
+            borderSpec: Border.controlSpec("normal", cp.foreground, cp.accent)
+          }
+
+          Rectangle {
+            id: svKnob
+            width: Style.space(10)
+            height: Style.space(10)
+            radius: width / 2
+            color: "transparent"
+            border.width: Math.max(2, Style.space(1.5))
+            border.color: cp.val > 0.55 ? "#000000" : "#ffffff"
+            x: Math.max(0, Math.min(parent.width - width, cp.sat * parent.width - width / 2))
+            y: Math.max(0, Math.min(parent.height - height, (1 - cp.val) * parent.height - height / 2))
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onPressed: function(mouse) {
+              var s = Math.max(0, Math.min(1, mouse.x / width))
+              var v = Math.max(0, Math.min(1, 1 - mouse.y / height))
+              cp.commit(cp.hue, s, v)
+            }
+            onPositionChanged: function(mouse) {
+              if (!pressed) return
+              var s = Math.max(0, Math.min(1, mouse.x / width))
+              var v = Math.max(0, Math.min(1, 1 - mouse.y / height))
+              cp.commit(cp.hue, s, v)
+            }
+            onWheel: function(wheel) {
+              var step = wheel.angleDelta.y > 0 ? 0.05 : -0.05
+              var v = Math.max(0, Math.min(1, cp.val + step))
+              cp.commit(cp.hue, cp.sat, v)
+            }
+          }
+        }
+
+        Column {
+          width: parent.width
+          spacing: Style.spacing.xs
+
+          Text {
+            textFormat: Text.PlainText
+            text: "Hue"
+            color: Qt.darker(cp.foreground, 1.4)
+            font.family: cp.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+          }
+
+          Item {
+            id: hueTrack
+            width: parent.width
+            height: Style.space(14)
+
+            Rectangle {
+              anchors.fill: parent
+              radius: height / 2
+              gradient: Gradient {
+                GradientStop { position: 0.0; color: "#ff0000" }
+                GradientStop { position: 0.17; color: "#ffff00" }
+                GradientStop { position: 0.33; color: "#00ff00" }
+                GradientStop { position: 0.50; color: "#00ffff" }
+                GradientStop { position: 0.67; color: "#0000ff" }
+                GradientStop { position: 0.83; color: "#ff00ff" }
+                GradientStop { position: 1.0; color: "#ff0000" }
+              }
+            }
+
+            BorderSurface {
+              anchors.fill: parent
+              color: "transparent"
+              radius: height / 2
+              borderSpec: Border.controlSpec("normal", cp.foreground, cp.accent)
+            }
+
+            BorderSurface {
+              id: hueKnob
+              width: Style.space(10)
+              height: Style.space(10)
+              radius: width / 2
+              color: cp.hsvToHex(cp.hue, cp.sat > 0.05 ? cp.sat : 1, cp.val > 0.05 ? cp.val : 1)
+              borderSpec: Border.flat(cp.val > 0.55 ? "#000000" : "#ffffff", Math.max(2, Style.space(1.5)))
+              x: Math.max(0, Math.min(parent.width - width, (cp.hue / 360) * parent.width - width / 2))
+              anchors.verticalCenter: parent.verticalCenter
+            }
+
+            MouseArea {
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onPressed: function(mouse) {
+                var h = Math.max(0, Math.min(359, (mouse.x / width) * 360))
+                cp.commit(h, cp.sat, cp.val)
+              }
+              onPositionChanged: function(mouse) {
+                if (!pressed) return
+                var h = Math.max(0, Math.min(359, (mouse.x / width) * 360))
+                cp.commit(h, cp.sat, cp.val)
+              }
+              onWheel: function(wheel) {
+                var step = wheel.angleDelta.y > 0 ? 5 : -5
+                var h = ((cp.hue + step) % 360 + 360) % 360
+                cp.commit(h, cp.sat, cp.val)
+              }
+            }
+          }
+        }
+
+        Column {
+          width: parent.width
+          spacing: Style.spacing.xs
+
+          Text {
+            textFormat: Text.PlainText
+            text: "Presets"
+            color: Qt.darker(cp.foreground, 1.4)
+            font.family: cp.fontFamily
+            font.pixelSize: Style.font.caption
+            font.bold: true
+          }
+
+          Grid {
+            id: presetGrid
+            width: parent.width
+            columns: 8
+            spacing: Style.spacing.xxs
+
+            Repeater {
+              model: cp.presets
+
+              delegate: Rectangle {
+                required property var modelData
+                readonly property bool selected:
+                  cp.isHex(cp.value)
+                  && cp.normalizeHex(cp.value).toLowerCase() === cp.normalizeHex(modelData.value).toLowerCase()
+
+                width: Style.space(18)
+                height: Style.space(18)
+                radius: Style.space(3)
+                color: modelData.value
+                border.width: selected ? Math.max(2, Style.space(1.5)) : Math.max(1, Style.space(1))
+                border.color: selected ? cp.accent : Qt.darker(cp.foreground, 1.3)
+
+                PanelToolTip {
+                  visible: presetMouse.containsMouse
+                  text: modelData.label
+                  fontFamily: cp.fontFamily
+                }
+
+                MouseArea {
+                  id: presetMouse
+                  anchors.fill: parent
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onClicked: {
+                    var rgb = cp.hexToRgb(modelData.value)
+                    var hsv = cp.rgbToHsv(rgb.r, rgb.g, rgb.b)
+                    cp.commit(hsv.h, hsv.s, hsv.v)
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 
@@ -244,38 +719,15 @@ BarWidget {
           }
         }
 
-        Item {
+        ColorPicker {
+          id: glowColorPicker
           visible: root.mozax && root.mozax.glow && !root.mozax.glowUseTheme
           width: parent.width
-          height: glowColorCol.visible ? glowColorCol.implicitHeight : 0
-
-          Column {
-            id: glowColorCol
-            visible: parent.height > 0
-            width: parent.width
-            spacing: Style.space(4)
-
-            Text {
-              textFormat: Text.PlainText
-              text: "Custom glow color"
-              color: Qt.darker(root.fg, 1.4)
-              font.family: root.ff
-              font.pixelSize: Style.font.bodySmall
-            }
-
-            TextField {
-              id: glowColorField
-              width: parent.width
-              text: root.mozax ? String(root.mozax.customGlowColor) : "#ffffff"
-              placeholderText: "#ffffff"
-              foreground: root.fg
-              onEditingFinished: {
-                if (!root.mozax) return
-                if (root.isHex(text)) root.mozax.customGlowColor = text.trim()
-                else text = String(root.mozax.customGlowColor)
-              }
-            }
-          }
+          label: "Custom glow color"
+          value: root.mozax ? String(root.mozax.customGlowColor) : "#ffffff"
+          foreground: root.fg
+          fontFamily: root.ff
+          onApplied: function(hex) { if (root.mozax) root.mozax.customGlowColor = hex }
         }
 
         // ---------- Grid ----------
@@ -342,38 +794,15 @@ BarWidget {
           onApplied: function(v) { if (root.mozax) root.mozax.gridOpacity = Math.max(0, Math.min(1, v)) }
         }
 
-        Item {
+        ColorPicker {
+          id: gridColorPicker
           visible: root.mozax && root.mozax.grid
           width: parent.width
-          height: gridColorCol.visible ? gridColorCol.implicitHeight : 0
-
-          Column {
-            id: gridColorCol
-            visible: parent.height > 0
-            width: parent.width
-            spacing: Style.space(4)
-
-            Text {
-              textFormat: Text.PlainText
-              text: "Line color"
-              color: Qt.darker(root.fg, 1.4)
-              font.family: root.ff
-              font.pixelSize: Style.font.bodySmall
-            }
-
-            TextField {
-              id: gridColorField
-              width: parent.width
-              text: root.mozax ? String(root.mozax.gridColor) : "#000000"
-              placeholderText: "#000000"
-              foreground: root.fg
-              onEditingFinished: {
-                if (!root.mozax) return
-                if (root.isHex(text)) root.mozax.gridColor = text.trim()
-                else text = String(root.mozax.gridColor)
-              }
-            }
-          }
+          label: "Line color"
+          value: root.mozax ? String(root.mozax.gridColor) : "#000000"
+          foreground: root.fg
+          fontFamily: root.ff
+          onApplied: function(hex) { if (root.mozax) root.mozax.gridColor = hex }
         }
 
         // ---------- Mosaic ----------
