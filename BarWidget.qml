@@ -893,7 +893,7 @@ BarWidget {
           valueText: (root.mozax ? root.mozax.glowRadius : 3) + " tiles"
           boundValue: root.mozax ? root.mozax.glowRadius : 3
           minimum: 0
-          maximum: 10
+          maximum: root.mozax ? root.mozax.glowRadiusMax : 10
           step: 1
           integer: true
           onApplied: function(v) { if (root.mozax) root.mozax.glowRadius = Math.round(v) }

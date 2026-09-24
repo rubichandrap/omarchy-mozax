@@ -121,7 +121,7 @@ omarchy-shell background mosaicBlockSize 8     # block edge in logical pixels
 3. **Radial Distance Falloff**: Tiles within the radius illuminate with cosine distance falloff:
    $$\text{falloff} = \cos\left(\frac{\text{dist}}{\text{maxDist}} \times \frac{\pi}{2}\right)$$
    The tile directly under the cursor is brightest, tapering down smoothly to the outer perimeter.
-4. **Decay Pool**: A circular pool of 128 delegates animates opacity decay smoothly over `glowDuration` milliseconds, giving a glowing wake effect without extra delegate allocations.
+4. **Radius-Aware Decay Pool**: The pool reserves one full lit footprint for the fading wake (up to 698 delegates at radius 10), while effective trail duration scales from 1× to 2.5× as radius increases. A boundary-only FIFO retires the oldest trail cells first, preserving a rounded outer cap without reordering the full footprint on every move.
 
 ## Notes
 

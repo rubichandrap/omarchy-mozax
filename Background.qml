@@ -55,6 +55,18 @@ Item {
   property color glowColor: glowUseTheme ? brightThemeAccent : customGlowColor
   property bool glowBorder: true           // Subtle border highlight around glowing tiles
   property color glowBorderColor: glowUseTheme ? brightThemeAccent : customGlowColor
+  readonly property int glowRadiusMax: 10
+  readonly property int glowTrailPoolDivisor: 2
+  readonly property int glowTrailRadiusScale: 4
+  readonly property int glowMinPoolSize: 128
+  readonly property int glowPoolSize: Math.max(
+    glowMinPoolSize,
+    glowCellCount(glowRadius) * (glowTrail ? glowTrailPoolDivisor : 1)
+  )
+  readonly property real glowTrailDurationScale: Math.max(1, glowRadius / glowTrailRadiusScale)
+  readonly property int glowTrailDuration: glowTrail
+    ? Math.round(glowDuration * glowTrailDurationScale)
+    : 0
 
   // Audio Visualizer Effect:
   // Spectrum bars or a fading tile heatmap along the bottom edge.
@@ -77,6 +89,18 @@ Item {
 
   function imageUrl(path) {
     return Util.fileUrl(path)
+  }
+
+  function glowCellCount(radius) {
+    var r = Math.max(0, Math.floor(radius))
+    var limit = r + 0.5
+    var count = 0
+    for (var dx = -r; dx <= r; dx++) {
+      for (var dy = -r; dy <= r; dy++) {
+        if (dx * dx + dy * dy <= limit * limit) count++
+      }
+    }
+    return count
   }
 
   function settingsSnapshot() {
@@ -129,7 +153,7 @@ Item {
       gridColor = colorval("gridColor", gridColor)
       gridOpacity = unitval("gridOpacity", gridOpacity)
       glow = boolval("glow", glow)
-      glowRadius = intval("glowRadius", glowRadius, 0)
+      glowRadius = Math.min(glowRadiusMax, intval("glowRadius", glowRadius, 0))
       glowIntensity = unitval("glowIntensity", glowIntensity)
       glowDuration = intval("glowDuration", glowDuration, 0)
       glowTrail = boolval("glowTrail", glowTrail)
@@ -364,7 +388,7 @@ Item {
 
     function glowRadius(value: string): void {
       var n = parseInt(value)
-      if (n >= 0) root.glowRadius = n
+      if (n >= 0) root.glowRadius = Math.min(n, root.glowRadiusMax)
     }
 
     function glowIntensity(value: string): void {
@@ -777,7 +801,7 @@ Item {
         visible: root.glow
 
         property var activeTiles: ({})
-        readonly property int poolSize: 128
+        readonly property int poolSize: root.glowPoolSize
 
         Repeater {
           id: glowPool
@@ -786,6 +810,11 @@ Item {
           Rectangle {
             id: glowTile
             property string tileKey: ""
+            property int currentGeneration: 0
+            property int trailQueueGeneration: -1
+            property int trailQueueId: -1
+            property bool queuedForTrail: false
+            property bool transientFlash: false
 
             width: Math.max(0, root.gridSize - root.gridGap)
             height: Math.max(0, root.gridSize - root.gridGap)
@@ -799,13 +828,16 @@ Item {
               id: tileFadeAnim
               target: glowTile
               property: "opacity"
-              duration: root.glowDuration
+              duration: glowTile.transientFlash ? root.glowDuration : root.glowTrailDuration
               easing.type: Easing.OutQuad
               onFinished: {
-                if (glowTile.tileKey && glowLayer.activeTiles[glowTile.tileKey] === glowTile) {
-                  delete glowLayer.activeTiles[glowTile.tileKey]
+                if (glowTile.currentGeneration !== glowController.footprintGeneration) {
+                  if (glowTile.tileKey && glowLayer.activeTiles[glowTile.tileKey] === glowTile) {
+                    delete glowLayer.activeTiles[glowTile.tileKey]
+                  }
+                  glowTile.tileKey = ""
+                  if (!glowTile.queuedForTrail) glowController.freeTiles.push(glowTile)
                 }
-                glowTile.tileKey = ""
               }
             }
 
@@ -829,6 +861,10 @@ Item {
                 delete glowLayer.activeTiles[tileKey]
               }
               tileKey = ""
+              currentGeneration = -1
+              trailQueueGeneration = -1
+              queuedForTrail = false
+              transientFlash = false
             }
           }
         }
@@ -1177,44 +1213,165 @@ Item {
       Item {
         id: glowController
 
-        property int poolIndex: 0
+        property int footprintGeneration: 0
+        property var currentTiles: []
+        property var previousCurrentTiles: []
+        property var trailQueue: []
+        property int trailQueueCursor: 0
+        property int trailDepartureGeneration: 0
+        property var freeTiles: []
+        property bool freeTilesInitialized: false
+
+        function initializeFreeTiles() {
+          if (glowController.freeTilesInitialized) return
+          var free = []
+          for (var i = 0; i < glowLayer.poolSize; i++) {
+            var tile = glowPool.itemAt(i)
+            if (tile) {
+              tile.trailQueueId = i
+              if (!tile.tileKey) free.push(tile)
+            }
+          }
+          glowController.freeTiles = free
+          glowController.freeTilesInitialized = true
+        }
+
+        function compactTrailQueue() {
+          var seen = {}
+          var compacted = []
+          for (var i = glowController.trailQueue.length - 1; i >= 0; i--) {
+            var entry = glowController.trailQueue[i]
+            var id = entry.tile.trailQueueId
+            if (seen[id] === true) continue
+            seen[id] = true
+            if (entry.generation === entry.tile.trailQueueGeneration) compacted.push(entry)
+          }
+          compacted.reverse()
+          glowController.trailQueue = compacted
+          glowController.trailQueueCursor = 0
+        }
+
+        function enqueueTrailTile(tile) {
+          if (!tile) return
+          var generation = ++glowController.trailDepartureGeneration
+          tile.trailQueueGeneration = generation
+          tile.queuedForTrail = true
+          glowController.trailQueue.push({ tile: tile, generation: generation })
+          if (glowController.trailQueue.length > glowLayer.poolSize * 2) {
+            glowController.compactTrailQueue()
+          }
+        }
+
+        function acquireTrailTile() {
+          glowController.initializeFreeTiles()
+          var delegate = glowController.freeTiles.pop()
+          if (delegate) return delegate
+
+          while (glowController.trailQueueCursor < glowController.trailQueue.length) {
+            var entry = glowController.trailQueue[glowController.trailQueueCursor]
+            glowController.trailQueueCursor++
+            var oldest = entry.tile
+            if (entry.generation !== oldest.trailQueueGeneration) continue
+            oldest.queuedForTrail = false
+            oldest.trailQueueGeneration = -1
+            if (oldest.currentGeneration === glowController.footprintGeneration) continue
+            if (oldest.tileKey && glowLayer.activeTiles[oldest.tileKey] === oldest) {
+              delete glowLayer.activeTiles[oldest.tileKey]
+            }
+            oldest.tileKey = ""
+            if (glowController.trailQueueCursor > 256
+                && glowController.trailQueueCursor * 2 >= glowController.trailQueue.length) {
+              glowController.trailQueue = glowController.trailQueue.slice(glowController.trailQueueCursor)
+              glowController.trailQueueCursor = 0
+            }
+            return oldest
+          }
+          return null
+        }
+
+        function beginFootprint() {
+          glowController.footprintGeneration++
+          glowController.currentTiles.length = 0
+        }
+
+        function finishFootprint() {
+          var current = glowController.currentTiles
+          var previous = glowController.previousCurrentTiles
+          for (var i = 0; i < previous.length; i++) {
+            var tile = previous[i]
+            if (tile && tile.currentGeneration !== glowController.footprintGeneration) {
+              glowController.enqueueTrailTile(tile)
+            }
+          }
+          glowController.previousCurrentTiles = current
+          previous.length = 0
+          glowController.currentTiles = previous
+        }
 
         function reset() {
           for (var i = 0; i < glowLayer.poolSize; i++) {
-            var t = glowPool.itemAt(i)
-            if (t) t.deactivate()
+            var tile = glowPool.itemAt(i)
+            if (tile) tile.deactivate()
           }
           glowLayer.activeTiles = ({})
+          glowController.footprintGeneration++
+          glowController.currentTiles.length = 0
+          glowController.previousCurrentTiles.length = 0
+          glowController.trailQueue = []
+          glowController.trailQueueCursor = 0
+          glowController.trailDepartureGeneration = 0
+          glowController.freeTiles = []
+          glowController.freeTilesInitialized = false
         }
 
-        function triggerTile(col, row, targetOpacity, instant) {
+        Connections {
+          target: glowLayer
+          function onPoolSizeChanged() {
+            glowController.reset()
+          }
+        }
+
+        function assignTile(col, row, targetOpacity, instant, transient) {
           var tx = col * root.gridSize + root.gridGap
           var ty = row * root.gridSize + root.gridGap
           var key = col + "_" + row
 
           var delegate = glowLayer.activeTiles[key]
           if (delegate) {
+            delegate.transientFlash = transient
             delegate.activate(tx, ty, targetOpacity, instant)
-          } else {
-            delegate = glowPool.itemAt(poolIndex)
-            if (delegate) {
-              if (delegate.tileKey && glowLayer.activeTiles[delegate.tileKey] === delegate) {
-                delete glowLayer.activeTiles[delegate.tileKey]
-              }
-              delegate.tileKey = key
-              glowLayer.activeTiles[key] = delegate
-              delegate.activate(tx, ty, targetOpacity, instant)
-              poolIndex = (poolIndex + 1) % glowLayer.poolSize
-            }
+            return delegate
           }
+
+          delegate = glowController.acquireTrailTile()
+          if (!delegate) return null
+          if (delegate.tileKey && glowLayer.activeTiles[delegate.tileKey] === delegate) {
+            delete glowLayer.activeTiles[delegate.tileKey]
+          }
+          delegate.tileKey = key
+          glowLayer.activeTiles[key] = delegate
+          delegate.transientFlash = transient
+          delegate.activate(tx, ty, targetOpacity, instant)
+          return delegate
+        }
+
+        function triggerTile(col, row, targetOpacity, instant) {
+          var delegate = glowController.assignTile(col, row, targetOpacity, instant, false)
+          if (delegate && root.glowTrail) {
+            delegate.currentGeneration = glowController.footprintGeneration
+            glowController.currentTiles.push(delegate)
+          }
+        }
+
+        function triggerTransientTile(col, row, targetOpacity, instant) {
+          glowController.assignTile(col, row, targetOpacity, instant, true)
         }
 
         function onPointerMoved(mx, my) {
           if (!root.glow) return
 
-          if (!root.glowTrail) {
-            reset()
-          }
+          if (!root.glowTrail) reset()
+          else glowController.beginFootprint()
 
           var centerCol = Math.floor(mx / root.gridSize)
           var centerRow = Math.floor(my / root.gridSize)
@@ -1224,6 +1381,7 @@ Item {
             if (centerCol >= 0 && centerRow >= 0) {
               triggerTile(centerCol, centerRow, root.glowIntensity, !root.glowTrail)
             }
+            if (root.glowTrail) glowController.finishFootprint()
             return
           }
 
@@ -1250,6 +1408,7 @@ Item {
               triggerTile(c, rw, targetOpacity, !root.glowTrail)
             }
           }
+          if (root.glowTrail) glowController.finishFootprint()
         }
 
         function onPointerClicked(mx, my) {
@@ -1259,7 +1418,7 @@ Item {
           var r = Math.max(1, root.glowRadius)
 
           // Clicked tile flashes to full peak brightness
-          triggerTile(centerCol, centerRow, 1.0, false)
+          glowController.triggerTransientTile(centerCol, centerRow, 1.0, false)
 
           // Neighboring tiles flash with radial burst
           var maxDist = (r + 0.5) * root.gridSize
@@ -1277,7 +1436,7 @@ Item {
 
               var norm = dist / maxDist
               var falloff = Math.cos(norm * (Math.PI / 2))
-              triggerTile(c, rw, Math.min(1.0, root.glowIntensity * 1.5 * falloff), false)
+              glowController.triggerTransientTile(c, rw, Math.min(1.0, root.glowIntensity * 1.5 * falloff), false)
             }
           }
         }
