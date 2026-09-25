@@ -46,6 +46,42 @@ cp -r ~/Projects/github.com/rubichandrap/omarchy-mozax ~/.config/omarchy/plugins
 omarchy restart shell
 ```
 
+## Uninstall
+
+```bash
+omarchy plugin remove rubichandrap.mozax
+omarchy restart shell
+```
+
+If the desktop is black after removal, re-enable Omarchy's built-in background renderer:
+
+```bash
+omarchy plugin enable omarchy.background
+omarchy restart shell
+```
+
+## Requirements and Dependencies
+
+Mozax runs inside the Omarchy shell and uses its Quickshell, Qt Quick, Wayland layer-shell,
+and `qs.Ui`/`qs.Commons` modules. The audio visualizer also requires the external `cava`
+package. On Arch-based Omarchy systems, install it with:
+
+```bash
+omarchy pkg add cava
+```
+
+Mozax also uses the host-provided `bash`, `readlink`, and `omarchy-theme-*` commands.
+It does not bundle third-party source code or require npm, pip, or another package manager.
+
+Mozax stores its settings in `~/.local/state/omarchy/mozax.json` and creates
+`~/.local/state/omarchy/mozax-cava.conf` when the visualizer needs it. It does not overwrite
+files under `~/.config/omarchy/`; changing the shell's enabled/disabled plugin list happens
+only through the explicit `omarchy plugin` install, enable, or remove commands.
+
+## License
+
+Mozax is released under the [MIT License](LICENSE). Copyright © 2026 rubichandrap.
+
 ## Use
 
 ### Bar widget
