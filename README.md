@@ -9,7 +9,7 @@ as normal.
 
 ## Demo
 
-![Mozax controls and pixelated grid](assets/mozax-preview.png)
+![Mozax controls and pixelated grid](preview.png)
 
 The screenshot shows the tabbed Mozax controls, glow settings, grid, and pixelated wallpaper.
 
