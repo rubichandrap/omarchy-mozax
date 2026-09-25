@@ -9,7 +9,7 @@ as normal.
 
 ## Demo
 
-[Watch the Mozax feature walkthrough (MP4)](assets/mozax-demo.mp4)
+![Mozax feature walkthrough](assets/mozax-demo.gif)
 
 The recording covers the interactive glow, click burst, audio visualizer, grid overlay,
 wallpaper pixelation, and bar controls in one place.
