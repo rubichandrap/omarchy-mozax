@@ -710,7 +710,6 @@ Item {
         readonly property int totalBarsCols: barCount * colsPerBar
         readonly property int startCol: Math.max(0, Math.floor((totalCols - totalBarsCols) / 2))
         readonly property int startOffset: startCol * root.gridSize
-        readonly property int bottomOffset: panel.height % root.gridSize
         readonly property int mosaicMaxCols: Math.max(0, Math.floor(totalCols / 2))
         readonly property int mosaicAvailableCols: Math.min(root.visualizerBarsCount, mosaicMaxCols)
         readonly property int mosaicCols: customMode
@@ -740,7 +739,6 @@ Item {
           Rectangle {
             id: vizBar
             anchors.bottom: parent.bottom
-            anchors.bottomMargin: visualizerLayer.bottomOffset
 
             x: visualizerLayer.startOffset + index * visualizerLayer.barSpanPixels + root.gridGap
             width: Math.max(0, visualizerLayer.barSpanPixels - root.gridGap)
@@ -786,7 +784,6 @@ Item {
             cellPitch: visualizerLayer.mosaicCellPitch
             rowPitch: visualizerLayer.mosaicRowPitch
             gridGap: root.gridGap
-            bottomOffset: visualizerLayer.bottomOffset
             visualizerOpacity: root.visualizerOpacity
             accentColor: Color.accent
             bandCount: root.visualizerBarsCount

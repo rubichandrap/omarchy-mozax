@@ -12,7 +12,6 @@ Item {
   property real cellPitch: 32
   property int rowPitch: 16
   property int gridGap: 1
-  property real bottomOffset: 0
   property real visualizerOpacity: 0.65
   property color accentColor: "#ffffff"
   property var cellConfig: []
@@ -20,7 +19,7 @@ Item {
 
   readonly property real boardWidth: Math.max(0, columns * cellPitch)
   readonly property real startX: Math.max(0, (width - boardWidth) / 2)
-  readonly property int startY: Math.max(0, Math.floor(height - bottomOffset - rows * rowPitch))
+  readonly property int startY: Math.max(0, Math.floor(height - rows * rowPitch))
   readonly property real tileWidth: Math.max(1, cellPitch - gridGap * 2)
   readonly property real tileHeight: Math.max(1, rowPitch - gridGap * 2)
 
