@@ -1078,6 +1078,11 @@ BarWidget {
         enabled: !!root.mozax
 
         // ---------- Glow ----------
+        PanelSeparator {
+          visible: root.showGlowTab
+          foreground: root.fg
+        }
+
         PanelSectionHeader {
           visible: root.showGlowTab
           text: "GLOW"
