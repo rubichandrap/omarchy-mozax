@@ -13,7 +13,27 @@ BarWidget {
   readonly property string ff: bar ? bar.fontFamily : Style.font.family
 
   property bool popupOpen: false
+  property int activeTab: 0
+  readonly property var tabValues: ["glow", "grid", "pixel", "audio"]
+  readonly property bool showGlowTab: activeTab === 0
+  readonly property bool showGridTab: activeTab === 1
+  readonly property bool showPixelTab: activeTab === 2
+  readonly property bool showAudioTab: activeTab === 3
+
   function close() { popupOpen = false }
+
+  function tabIndex(value) {
+    for (var i = 0; i < tabValues.length; i++) {
+      if (tabValues[i] === value) return i
+    }
+    return 0
+  }
+
+  onActiveTabChanged: {
+    Qt.callLater(function() {
+      if (flick) flick.contentY = 0
+    })
+  }
 
   function visualizerVariantValue() {
     if (!mozax) return "bars"
@@ -34,7 +54,7 @@ BarWidget {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  component SliderControl: Column {
+  component SliderControl: Item {
     id: sc
 
     property QtObject barRef: null
@@ -45,12 +65,56 @@ BarWidget {
     property real maximum: 1
     property real step: 0.05
     property bool integer: false
+    readonly property real trackHeight: Math.max(4, Math.round(Style.spacing.controlHeight * 0.11))
+    readonly property real knobSize: Math.max(14, Math.round(Style.spacing.controlHeight * 0.38))
     signal applied(real v)
 
     width: parent ? parent.width : implicitWidth
-    spacing: Style.space(4)
+    implicitHeight: labelRow.height + Style.space(4) + trackArea.height
+    property bool dragging: false
+    property real liveValue: boundValue
+    readonly property real range: Math.max(0.0001, maximum - minimum)
+    readonly property real progress: Math.max(0, Math.min(1, (liveValue - minimum) / range))
+
+    onBoundValueChanged: if (!dragging) liveValue = boundValue
+
+    function valueFromX(x) {
+      var next = minimum + Math.max(0, Math.min(trackArea.width, x)) / Math.max(1, trackArea.width) * range
+      if (integer) next = Math.round(next)
+      else next = Math.round(next / step) * step
+      return Math.max(minimum, Math.min(maximum, next))
+    }
+
+    function applyAt(x) {
+      liveValue = valueFromX(x)
+      applied(liveValue)
+    }
+
+    function handleKey(event) {
+      var direction = event.key === Qt.Key_Right || event.key === Qt.Key_Up ? 1
+        : event.key === Qt.Key_Left || event.key === Qt.Key_Down ? -1
+        : 0
+      if (direction !== 0) {
+        applyValue(liveValue + direction * (integer ? 1 : step))
+        event.accepted = true
+      } else if (event.key === Qt.Key_Home) {
+        applyValue(minimum)
+        event.accepted = true
+      } else if (event.key === Qt.Key_End) {
+        applyValue(maximum)
+        event.accepted = true
+      }
+    }
+
+    function applyValue(value) {
+      var next = integer ? Math.round(value) : Math.round(value / step) * step
+      next = Math.max(minimum, Math.min(maximum, next))
+      liveValue = next
+      applied(next)
+    }
 
     Item {
+      id: labelRow
       width: parent.width
       height: Math.max(sliderLabel.implicitHeight, sliderValue.implicitHeight)
 
@@ -78,16 +142,101 @@ BarWidget {
       }
     }
 
-    PanelSlider {
-      bar: sc.barRef
+    Item {
+      id: trackArea
+      anchors.top: labelRow.bottom
+      anchors.topMargin: Style.space(4)
       width: parent.width
-      value: sc.boundValue
-      minimum: sc.minimum
-      maximum: sc.maximum
-      step: sc.step
-      integer: sc.integer
-      onMoved: function(v) { sc.applied(v) }
-      onReleased: function(v) { sc.applied(v) }
+      height: sc.knobSize
+      activeFocusOnTab: true
+      Keys.onPressed: sc.handleKey
+
+      BorderSurface {
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: sc.trackHeight
+        radius: height / 2
+        color: track.pressed || track.containsMouse || sc.dragging
+          ? Style.focusFillFor(sc.barRef ? sc.barRef.foreground : Color.foreground, Color.accent)
+          : "transparent"
+        borderSpec: trackArea.activeFocus
+          ? Border.controlSpec("focus", sc.barRef ? sc.barRef.foreground : Color.foreground, Color.accent)
+          : Border.none()
+      }
+
+      Rectangle {
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: sc.trackHeight
+        radius: height / 2
+        color: Style.selectedFillFor(sc.barRef ? sc.barRef.foreground : Color.foreground, Color.accent)
+      }
+
+      Rectangle {
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.left: parent.left
+        width: parent.width * sc.progress
+        height: sc.trackHeight
+        radius: height / 2
+        color: sc.barRef ? sc.barRef.foreground : Color.foreground
+
+        Behavior on width {
+          enabled: !sc.dragging
+          NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+        }
+      }
+
+      BorderSurface {
+        id: knob
+        width: sc.knobSize
+        height: sc.knobSize
+        radius: width / 2
+        color: sc.barRef ? sc.barRef.foreground : Color.foreground
+        borderSpec: Border.flat(sc.barRef ? sc.barRef.background : "#101315", Math.max(1, Style.space(2)))
+        anchors.verticalCenter: parent.verticalCenter
+        x: Math.max(0, Math.min(parent.width - width, parent.width * sc.progress - width / 2))
+        scale: track.pressed || track.containsMouse || sc.dragging ? 1.15 : 1.0
+
+        Behavior on x {
+          enabled: !sc.dragging
+          NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+        }
+
+        Behavior on scale {
+          NumberAnimation { duration: 110; easing.type: Easing.OutCubic }
+        }
+      }
+
+      MouseArea {
+        id: track
+        anchors.fill: parent
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        acceptedButtons: Qt.LeftButton
+        preventStealing: true
+
+        onPressed: function(mouse) {
+          if (mouse.button !== Qt.LeftButton) return
+          trackArea.forceActiveFocus()
+          sc.dragging = true
+          sc.applyAt(mouse.x)
+        }
+        onPositionChanged: function(mouse) {
+          if (!sc.dragging) return
+          sc.applyAt(mouse.x)
+        }
+        onReleased: function(mouse) {
+          if (mouse.button !== Qt.LeftButton) return
+          sc.applyAt(mouse.x)
+          sc.dragging = false
+        }
+        onCanceled: sc.dragging = false
+        onWheel: function(wheel) {
+          // Ignore wheel input; only drag and keyboard change this value.
+        }
+      }
     }
   }
 
@@ -831,12 +980,71 @@ BarWidget {
     bar: root.bar
     owner: root
     open: root.popupOpen
-    contentWidth: popup.fittedContentWidth(Style.space(300))
-    contentHeight: popup.fittedContentHeight(column.implicitHeight, Style.space(520))
+    onOpenChanged: {
+      if (open) Qt.callLater(function() { focusTab(root.activeTab) })
+    }
+    contentWidth: popup.fittedContentWidth(Style.space(320))
+    contentHeight: popup.fittedContentHeight(
+      tabs.height + Style.spacing.controlGap + column.implicitHeight,
+      Style.space(520))
+
+    function focusTab(index) {
+      if (index < 0 || index >= tabRepeater.count) return
+      var tab = tabRepeater.itemAt(index)
+      if (tab && tab.forceActiveFocus) tab.forceActiveFocus()
+    }
+
+    Row {
+      id: tabs
+      width: parent.width
+      height: Style.spacing.controlHeight
+      spacing: Style.spacing.controlGap
+
+      Repeater {
+        id: tabRepeater
+        model: [
+          { label: "Glow", value: "glow" },
+          { label: "Grid", value: "grid" },
+          { label: "Pixel", value: "pixel" },
+          { label: "Audio", value: "audio" }
+        ]
+
+        delegate: Button {
+          required property var modelData
+          width: (tabs.width - tabs.spacing * 3) / 4
+          height: tabs.height
+          text: modelData.label
+          selected: root.activeTab === root.tabIndex(modelData.value)
+          focusable: true
+          bordered: true
+          foreground: root.fg
+          background: "transparent"
+          horizontalPadding: Style.spacing.sm
+          onClicked: root.activeTab = root.tabIndex(modelData.value)
+          Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Left) {
+              var previous = (root.activeTab + root.tabValues.length - 1) % root.tabValues.length
+              root.activeTab = previous
+              popup.focusTab(previous)
+              event.accepted = true
+            } else if (event.key === Qt.Key_Right) {
+              var next = (root.activeTab + 1) % root.tabValues.length
+              root.activeTab = next
+              popup.focusTab(next)
+              event.accepted = true
+            }
+          }
+        }
+      }
+    }
 
     Flickable {
       id: flick
-      anchors.fill: parent
+      anchors.top: tabs.bottom
+      anchors.topMargin: Style.spacing.controlGap
+      anchors.left: parent.left
+      anchors.right: parent.right
+      anchors.bottom: parent.bottom
       contentWidth: width
       contentHeight: column.implicitHeight
       clip: true
@@ -871,12 +1079,14 @@ BarWidget {
 
         // ---------- Glow ----------
         PanelSectionHeader {
+          visible: root.showGlowTab
           text: "GLOW"
           foreground: root.fg
           fontFamily: root.ff
         }
 
         Toggle {
+          visible: root.showGlowTab
           width: parent.width
           label: "Tile glow"
           description: "Cursor spotlight and click burst"
@@ -887,7 +1097,7 @@ BarWidget {
         }
 
         SliderControl {
-          visible: root.mozax && root.mozax.glow
+          visible: root.showGlowTab && root.mozax && root.mozax.glow
           barRef: root.bar
           label: "Radius"
           valueText: (root.mozax ? root.mozax.glowRadius : 3) + " tiles"
@@ -900,7 +1110,7 @@ BarWidget {
         }
 
         SliderControl {
-          visible: root.mozax && root.mozax.glow
+          visible: root.showGlowTab && root.mozax && root.mozax.glow
           barRef: root.bar
           label: "Intensity"
           valueText: Math.round((root.mozax ? root.mozax.glowIntensity : 0.45) * 100) + "%"
@@ -912,7 +1122,7 @@ BarWidget {
         }
 
         SliderControl {
-          visible: root.mozax && root.mozax.glow
+          visible: root.showGlowTab && root.mozax && root.mozax.glow
           barRef: root.bar
           label: "Trail fade"
           valueText: (root.mozax ? root.mozax.glowDuration : 400) + " ms"
@@ -925,7 +1135,7 @@ BarWidget {
         }
 
         Toggle {
-          visible: root.mozax && root.mozax.glow
+          visible: root.showGlowTab && root.mozax && root.mozax.glow
           width: parent.width
           label: "Smooth trail"
           description: "Fading wake instead of instant follow"
@@ -936,7 +1146,7 @@ BarWidget {
         }
 
         Toggle {
-          visible: root.mozax && root.mozax.glow
+          visible: root.showGlowTab && root.mozax && root.mozax.glow
           width: parent.width
           label: "Tile border"
           description: "Subtle outline on lit tiles"
@@ -947,7 +1157,7 @@ BarWidget {
         }
 
         Toggle {
-          visible: root.mozax && root.mozax.glow
+          visible: root.showGlowTab && root.mozax && root.mozax.glow
           width: parent.width
           label: "Theme accent"
           description: "Use brightened theme color"
@@ -962,7 +1172,7 @@ BarWidget {
 
         ColorPicker {
           id: glowColorPicker
-          visible: root.mozax && root.mozax.glow && !root.mozax.glowUseTheme
+          visible: root.showGlowTab && root.mozax && root.mozax.glow && !root.mozax.glowUseTheme
           width: parent.width
           label: "Custom glow color"
           value: root.mozax ? String(root.mozax.customGlowColor) : "#ffffff"
@@ -973,16 +1183,19 @@ BarWidget {
 
         // ---------- Grid ----------
         PanelSeparator {
+          visible: root.showGridTab
           foreground: root.fg
         }
 
         PanelSectionHeader {
+          visible: root.showGridTab
           text: "GRID"
           foreground: root.fg
           fontFamily: root.ff
         }
 
         Toggle {
+          visible: root.showGridTab
           width: parent.width
           label: "Grid overlay"
           description: "Grout lines over the wallpaper"
@@ -993,7 +1206,7 @@ BarWidget {
         }
 
         SliderControl {
-          visible: root.mozax && root.mozax.grid
+          visible: root.showGridTab && root.mozax && root.mozax.grid
           barRef: root.bar
           label: "Line pitch"
           valueText: (root.mozax ? root.mozax.gridSize : 16) + " px"
@@ -1011,7 +1224,7 @@ BarWidget {
         }
 
         SliderControl {
-          visible: root.mozax && root.mozax.grid
+          visible: root.showGridTab && root.mozax && root.mozax.grid
           barRef: root.bar
           label: "Line width"
           valueText: (root.mozax ? root.mozax.gridGap : 1) + " px"
@@ -1024,7 +1237,7 @@ BarWidget {
         }
 
         SliderControl {
-          visible: root.mozax && root.mozax.grid
+          visible: root.showGridTab && root.mozax && root.mozax.grid
           barRef: root.bar
           label: "Opacity"
           valueText: Math.round((root.mozax ? root.mozax.gridOpacity : 0.5) * 100) + "%"
@@ -1037,7 +1250,7 @@ BarWidget {
 
         ColorPicker {
           id: gridColorPicker
-          visible: root.mozax && root.mozax.grid
+          visible: root.showGridTab && root.mozax && root.mozax.grid
           width: parent.width
           label: "Line color"
           value: root.mozax ? String(root.mozax.gridColor) : "#000000"
@@ -1048,16 +1261,19 @@ BarWidget {
 
         // ---------- Wallpaper pixelation ----------
         PanelSeparator {
+          visible: root.showPixelTab
           foreground: root.fg
         }
 
         PanelSectionHeader {
+          visible: root.showPixelTab
           text: "WALLPAPER PIXELATION"
           foreground: root.fg
           fontFamily: root.ff
         }
 
         Toggle {
+          visible: root.showPixelTab
           width: parent.width
           label: "Pixelation"
           description: "Retro blocky wallpaper"
@@ -1068,7 +1284,7 @@ BarWidget {
         }
 
         SliderControl {
-          visible: root.mozax && root.mozax.mosaic
+          visible: root.showPixelTab && root.mozax && root.mozax.mosaic
           barRef: root.bar
           label: "Block size"
           valueText: (root.mozax ? root.mozax.mosaicBlock : 8) + " px"
@@ -1082,16 +1298,19 @@ BarWidget {
 
         // ---------- Visualizer ----------
         PanelSeparator {
+          visible: root.showAudioTab
           foreground: root.fg
         }
 
         PanelSectionHeader {
+          visible: root.showAudioTab
           text: "VISUALIZER"
           foreground: root.fg
           fontFamily: root.ff
         }
 
         Toggle {
+          visible: root.showAudioTab
           width: parent.width
           label: "Audio visualizer"
           description: root.mozax && root.mozax.visualizerVariant === "mosaic"
@@ -1105,7 +1324,7 @@ BarWidget {
 
         WindowDropdown {
           id: variantDropdown
-          visible: root.mozax && root.mozax.visualizer
+          visible: root.showAudioTab && root.mozax && root.mozax.visualizer
           width: parent.width
           label: "Effect"
           value: root.visualizerVariantValue()
@@ -1117,7 +1336,7 @@ BarWidget {
         }
 
         SliderControl {
-          visible: root.mozax && root.mozax.visualizer
+          visible: root.showAudioTab && root.mozax && root.mozax.visualizer
           barRef: root.bar
           label: "Opacity"
           valueText: Math.round((root.mozax ? root.mozax.visualizerOpacity : 0.65) * 100) + "%"
@@ -1129,7 +1348,7 @@ BarWidget {
         }
 
         SliderControl {
-          visible: root.mozax && root.mozax.visualizer && root.mozax.visualizerVariant === "mosaic"
+          visible: root.showAudioTab && root.mozax && root.mozax.visualizer && root.mozax.visualizerVariant === "mosaic"
           barRef: root.bar
           label: "Mosaic height"
           valueText: (root.mozax ? root.mozax.visualizerMosaicRows : 4) + " rows"
@@ -1145,7 +1364,7 @@ BarWidget {
         }
 
         SliderControl {
-          visible: root.mozax && root.mozax.visualizer && root.mozax.visualizerVariant === "bars"
+          visible: root.showAudioTab && root.mozax && root.mozax.visualizer && root.mozax.visualizerVariant === "bars"
           barRef: root.bar
           label: "Max height"
           valueText: (root.mozax ? root.mozax.visualizerHeight : 16) + " tiles"
@@ -1159,7 +1378,7 @@ BarWidget {
 
         WindowDropdown {
           id: widthDropdown
-          visible: root.mozax && root.mozax.visualizer
+          visible: root.showAudioTab && root.mozax && root.mozax.visualizer
           width: parent.width
           label: "Width"
           showLabel: true
