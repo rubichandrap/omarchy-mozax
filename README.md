@@ -13,6 +13,10 @@ as normal.
 
 The screenshot shows the tabbed Mozax controls, glow settings, grid, and pixelated wallpaper.
 
+### Animated Demo
+
+![Mozax animated demo](assets/mozax-demo.webp)
+
 ## Features
 
 - **Click Burst with Animated Omarchy Logo**: Clicking on the desktop triggers an expanding
