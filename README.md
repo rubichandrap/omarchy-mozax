@@ -9,10 +9,9 @@ as normal.
 
 ## Demo
 
-![Mozax feature walkthrough](assets/mozax-demo.gif)
+![Mozax controls and pixelated grid](assets/mozax-preview.png)
 
-The recording covers the interactive glow, click burst, audio visualizer, grid overlay,
-wallpaper pixelation, and bar controls in one place.
+The screenshot shows the tabbed Mozax controls, glow settings, grid, and pixelated wallpaper.
 
 ## Features
 
