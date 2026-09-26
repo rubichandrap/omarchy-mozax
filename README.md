@@ -17,7 +17,7 @@ their own dither threshold, so the light arrives scattered instead of as a disc.
 
 ### Animated Demo
 
-![The ambient pool blooming the Omarchy mark and dissolving again](assets/mozax-demo.webp)
+![The ambient pool blooming the Omarchy mark and dissolving again](assets/mozax-demo-full.webp)
 
 The wandering pool charges, blooms the mark, and melts back into scattered tiles.
 
