@@ -52,6 +52,26 @@ lights only when the light under the cursor beats a threshold it owns.
 Their controls, properties and IPC calls are gone with them. Old keys in
 `mozax.json` are ignored on load, so nothing needs migrating.
 
+### Fixed
+
+- The colour picker opening off the bottom of the screen on the first click and
+  only landing correctly on the second. The popup measured itself before its
+  content had been laid out and before it had been reparented onto the window,
+  so it cached a position computed from the panel's own coordinates. It now
+  waits for the reparent, re-clamps whenever its own size resolves, measures
+  from `implicitHeight`, and flips above the swatch when there is no room below
+  instead of being pushed off screen.
+- The colour picker staying open after the panel closed, or after its row went
+  away (tab switch, toggling the feature off). It is reparented onto the window,
+  so the panel's teardown never reached it; it now closes with its row and with
+  the panel.
+- The control panel painting its scrollbar over the controls. A custom scrollbar
+  handle replaces the themed one, so nothing hid it when there was nothing to
+  scroll: it sat on every tab, on top of the toggles and sliders, because the
+  right-hand gutter that used to mask it was removed. The handle now shows only
+  while a tab actually overflows, out of a gutter reserved for exactly that case,
+  so a tab that fits gets the full width and no bar.
+
 ## [1.1.0] - 2026-09-24
 
 - Bar widget with live popup controls, on the bar and controllable over IPC.
