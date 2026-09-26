@@ -48,6 +48,10 @@ Item {
   property real pointerAmpTarget: 0
   property int lastFrameMs: 0
 
+  // The ambient pool's brightness as of the last paint, so a charge dimming or
+  // a mark lighting it is a change step() can see.
+  property real paintedDriftAmp: -1
+
   property var tiles: []
   property int used: 0
   property int shown: 0
@@ -101,6 +105,25 @@ Item {
     width * (0.5 + 0.44 * (1 + 0.1 * Math.sin(clock * 0.11)) * Math.sin(clock * 0.6483))
   readonly property real driftY:
     height * (0.48 + 0.38 * (1 + 0.1 * Math.sin(clock * 0.0937 + 2)) * Math.sin(clock * 0.3911 + 1.1))
+
+  /** The ambient pool's brightness, dimmed to 40% while it charges, the way
+   *  the site's sprite is. */
+  readonly property real driftAmp: drift * intensity * (spriteChargeAt > 0 ? 0.4 : 1)
+
+  /**
+   * How often the ambient pool repaints, in seconds. It crosses the screen in
+   * about ten seconds, so it does move every frame, but it is a soft dim pool
+   * and nothing about it reads at refresh rate: the tiles it lights are a whole
+   * cell across and it is never brighter than the pool under the cursor. A
+   * third of the frames draws the same glow a frame earlier, and skipping them
+   * is most of what the idle cost of the effect is. The mark it blooms is a
+   * separate, short, fast animation and still repaints every frame.
+   */
+  readonly property real driftInterval: 1 / 30
+
+  /** When the ambient pool last drew itself, so step() can hold it to its
+   *  own rate while the pointer and the marks keep theirs. */
+  property real lastDriftPaint: -1
 
   // The Omarchy mosaic mark, 15x15.
   readonly property var logoRows: [
@@ -243,7 +266,17 @@ Item {
   function step(dt) {
     clock += dt
 
-    var moving = drift > 0.002 || pings.length > 0
+    var moving = pings.length > 0
+
+    // The ambient pool repaints on its own slower clock, so it is not redrawn
+    // at refresh rate for a glow that is dimmer than the pool under the cursor
+    // and a whole cell coarse. Dimming for a charge or lighting a mark is a
+    // change in brightness rather than position, and it goes through at once:
+    // waiting out the interval would show the bloom late.
+    if (drift > 0.002) {
+      if (Math.abs(driftAmp - paintedDriftAmp) > 0.004
+          || clock - lastDriftPaint >= driftInterval) moving = true
+    }
 
     // Rise fast, die back slow enough not to pop as the pointer leaves.
     var tau = pointerAmpTarget > pointerAmp ? 0.05 : 0.18
@@ -370,9 +403,9 @@ Item {
     if (amp > 0.002) pool(pointerX, pointerY, reach, amp)
 
     if (drift > 0.002) {
-      // Dimmed to 40% while it charges, the way the site's sprite is.
-      var glow = drift * intensity * (spriteChargeAt > 0 ? 0.4 : 1)
-      pool(driftX, driftY, reach * 1.1, glow)
+      pool(driftX, driftY, reach * 1.1, driftAmp)
+      paintedDriftAmp = driftAmp
+      lastDriftPaint = clock
     }
 
     for (var i = 0; i < pingSlots; i++) {
