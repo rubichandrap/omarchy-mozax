@@ -71,6 +71,14 @@ Their controls, properties and IPC calls are gone with them. Old keys in
   right-hand gutter that used to mask it was removed. The handle now shows only
   while a tab actually overflows, out of a gutter reserved for exactly that case,
   so a tab that fits gets the full width and no bar.
+- The ambient pool costing about 30% of a core to sit still. It read `drift` as
+  "something is moving" and asked for a repaint every frame, sixty times a
+  second, to redraw a soft pool that is dimmer than the one under the cursor and
+  a whole tile coarse. It now repaints on its own 30fps clock, while the pool
+  under the cursor and the mark the ambient pool blooms still repaint every
+  frame, so nothing that answers to the mouse lost a frame. Measured against the
+  running shell: 60 repaints a second became 27, and the effect's cost with the
+  cursor still fell by about a third.
 
 ## [1.1.0] - 2026-09-24
 
