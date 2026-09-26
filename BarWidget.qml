@@ -22,6 +22,11 @@ BarWidget {
 
   function close() { popupOpen = false }
 
+  function dismissPickers() {
+    glowColorPicker.dismiss()
+    gridColorPicker.dismiss()
+  }
+
   function tabIndex(value) {
     for (var i = 0; i < tabValues.length; i++) {
       if (tabValues[i] === value) return i
@@ -598,6 +603,12 @@ BarWidget {
     onValueChanged: loadFromValue(value)
     Component.onCompleted: loadFromValue(value)
 
+    // The popup is reparented onto the window, so nothing in the panel's own
+    // teardown closes it for us: it has to go when this row does, and when the
+    // panel closes.
+    onVisibleChanged: if (!visible) pickerPopup.close()
+    function dismiss() { pickerPopup.close() }
+
     readonly property var presets: [
       { value: "#000000", label: "Black" },
       { value: "#ffffff", label: "White" },
@@ -693,10 +704,25 @@ BarWidget {
       property real _anchorY: 0
 
       function reposition() {
-        if (!parent) return
-        var p = triggerRow.mapToItem(parent, 0, triggerRow.height + Style.spacing.xxs)
-        _anchorX = Math.max(Style.space(8), Math.min(p.x, parent.width - width - Style.space(8)))
-        _anchorY = Math.max(Style.space(8), Math.min(p.y, parent.height - height - Style.space(8)))
+        if (!visible) return
+        var host = triggerRow.Window.window ? triggerRow.Window.window.contentItem : null
+        // Until the popup lands on the window it sits inside the Flickable's
+        // clip and trigger-relative coordinates mean nothing, so wait for the
+        // reparent instead of caching a position that is already wrong.
+        if (!host || parent !== host) return
+        var p = triggerRow.mapToItem(host, 0, triggerRow.height + Style.spacing.xxs)
+        // implicitHeight is known before the first layout pass, height is not.
+        var h = implicitHeight > 0 ? implicitHeight : height
+        var margin = Style.space(8)
+        var above = p.y - Style.spacing.xxs
+        _anchorX = Math.max(margin, Math.min(p.x, host.width - width - margin))
+        if (host.height - p.y >= h) {
+          _anchorY = p.y
+        } else if (above >= h) {
+          _anchorY = above - h
+        } else {
+          _anchorY = Math.max(margin, Math.min(p.y, host.height - h - margin))
+        }
       }
 
       x: _anchorX
@@ -720,6 +746,13 @@ BarWidget {
         function onHeightChanged() { pickerPopup.reposition() }
       }
 
+      // The window reparent and the first layout pass both land after
+      // onOpened, and each one invalidates the position on its own.
+      onParentChanged: reposition()
+      onWidthChanged: reposition()
+      onHeightChanged: reposition()
+      onVisibleChanged: if (visible) reposition()
+
       background: BorderSurface {
         color: Color.popups.background
         borderSpec: pickerPopup.popupBorderSpec
@@ -727,8 +760,9 @@ BarWidget {
       }
 
       onOpened: {
-        reposition()
         loadFromValue(cp.value)
+        reposition()
+        Qt.callLater(function() { pickerPopup.reposition() })
       }
 
       contentItem: Column {
@@ -982,6 +1016,7 @@ BarWidget {
     open: root.popupOpen
     onOpenChanged: {
       if (open) Qt.callLater(function() { focusTab(root.activeTab) })
+      else root.dismissPickers()
     }
     contentWidth: popup.fittedContentWidth(Style.space(320))
     contentHeight: popup.fittedContentHeight(
@@ -1050,11 +1085,14 @@ BarWidget {
       clip: true
       boundsBehavior: Flickable.StopAtBounds
       flickableDirection: Flickable.VerticalFlick
-      interactive: contentHeight > height
+      interactive: overflows
+      readonly property bool overflows: contentHeight > height + 1
 
-      // Always keep a right gutter so the overlay scrollbar never sits on
-      // inputs/labels (attached ScrollBar paints over full-width content).
-      // Handle uses the theme foreground for contrast on the dark popup.
+      // overflow-y: auto. A custom contentItem replaces the style's handle, so
+      // nothing hides it on its own: without the `overflows` term below it
+      // paints over the controls of every tab that fits. It keys off the same
+      // flag that reserves the gutter, not off `active`, which stays false on a
+      // tab that clearly overflows. The gutter is reserved only while it does.
       ScrollBar.vertical: ScrollBar {
         id: vBar
         policy: ScrollBar.AsNeeded
@@ -1066,13 +1104,13 @@ BarWidget {
           implicitWidth: Style.space(6)
           radius: width / 2
           color: root.fg
-          opacity: vBar.pressed ? 1.0 : (vBar.hovered ? 0.85 : 0.5)
+          opacity: !flick.overflows ? 0 : (vBar.pressed ? 1.0 : (vBar.hovered ? 0.85 : 0.5))
         }
       }
 
       Column {
         id: column
-        width: flick.width - Style.space(16)
+        width: flick.width - (flick.overflows ? Style.space(16) : 0)
         spacing: Style.space(8)
         opacity: root.mozax ? 1.0 : 0.45
         enabled: !!root.mozax
@@ -1094,7 +1132,7 @@ BarWidget {
           visible: root.showGlowTab
           width: parent.width
           label: "Tile glow"
-          description: "Cursor spotlight and click burst"
+          description: "Scattered cursor pool and click stamp"
           checked: root.mozax ? root.mozax.glow : false
           foreground: root.fg
           fontFamily: root.ff
@@ -1104,9 +1142,9 @@ BarWidget {
         SliderControl {
           visible: root.showGlowTab && root.mozax && root.mozax.glow
           barRef: root.bar
-          label: "Radius"
-          valueText: (root.mozax ? root.mozax.glowRadius : 3) + " tiles"
-          boundValue: root.mozax ? root.mozax.glowRadius : 3
+          label: "Core radius"
+          valueText: (root.mozax ? root.mozax.glowRadius : 4) + " tiles"
+          boundValue: root.mozax ? root.mozax.glowRadius : 4
           minimum: 0
           maximum: root.mozax ? root.mozax.glowRadiusMax : 10
           step: 1
@@ -1118,8 +1156,8 @@ BarWidget {
           visible: root.showGlowTab && root.mozax && root.mozax.glow
           barRef: root.bar
           label: "Intensity"
-          valueText: Math.round((root.mozax ? root.mozax.glowIntensity : 0.45) * 100) + "%"
-          boundValue: root.mozax ? root.mozax.glowIntensity : 0.45
+          valueText: Math.round((root.mozax ? root.mozax.glowIntensity : 0.7) * 100) + "%"
+          boundValue: root.mozax ? root.mozax.glowIntensity : 0.7
           minimum: 0
           maximum: 1
           step: 0.05
@@ -1129,36 +1167,24 @@ BarWidget {
         SliderControl {
           visible: root.showGlowTab && root.mozax && root.mozax.glow
           barRef: root.bar
-          label: "Trail fade"
-          valueText: (root.mozax ? root.mozax.glowDuration : 400) + " ms"
-          boundValue: root.mozax ? root.mozax.glowDuration : 400
+          label: "Scatter"
+          valueText: Math.round((root.mozax ? root.mozax.glowScatter : 0.22) * 100) + "%"
+          boundValue: root.mozax ? root.mozax.glowScatter : 0.22
           minimum: 0
-          maximum: 1500
-          step: 50
-          integer: true
-          onApplied: function(v) { if (root.mozax) root.mozax.glowDuration = Math.max(0, Math.round(v)) }
+          maximum: 0.6
+          step: 0.02
+          onApplied: function(v) { if (root.mozax) root.mozax.glowScatter = Math.max(0, Math.min(0.6, v)) }
         }
 
         Toggle {
           visible: root.showGlowTab && root.mozax && root.mozax.glow
           width: parent.width
-          label: "Smooth trail"
-          description: "Fading wake instead of instant follow"
-          checked: root.mozax ? root.mozax.glowTrail : true
+          label: "Ambient drift"
+          description: "A faint pool that wanders, then blooms the mark"
+          checked: root.mozax ? root.mozax.glowDrift : true
           foreground: root.fg
           fontFamily: root.ff
-          onClicked: if (root.mozax) root.mozax.glowTrail = !root.mozax.glowTrail
-        }
-
-        Toggle {
-          visible: root.showGlowTab && root.mozax && root.mozax.glow
-          width: parent.width
-          label: "Tile border"
-          description: "Subtle outline on lit tiles"
-          checked: root.mozax ? root.mozax.glowBorder : true
-          foreground: root.fg
-          fontFamily: root.ff
-          onClicked: if (root.mozax) root.mozax.glowBorder = !root.mozax.glowBorder
+          onClicked: if (root.mozax) root.mozax.glowDrift = !root.mozax.glowDrift
         }
 
         Toggle {

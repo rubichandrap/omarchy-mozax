@@ -42,31 +42,21 @@ Item {
   property real gridOpacity: 0.5
 
   // Interactive Cursor-Hover Glow Effect:
-  // Tiles around the cursor shine with a radial falloff: the closer to the
-  // cursor, the brighter the tile illuminates.
+  // Tiles light by beat a per-tile dither threshold, so the pool under the
+  // cursor arrives as a loose constellation of squares that thickens toward
+  // the centre, and a click dissolves the Omarchy mark through the same
+  // dither. See PixelGlow.qml for the renderer.
   property bool glow: true
-  property int glowRadius: 3               // Radius in tiles around cursor (increased spotlight)
-  property real glowIntensity: 0.45        // Peak shine brightness (0.0 to 1.0)
-  property int glowDuration: 400           // Fade-out duration in milliseconds
-  property bool glowTrail: true            // Smooth fading trail vs instant follow
+  property int glowRadius: 4               // Radius of the solid core, in tiles
+  property real glowIntensity: 0.7         // Peak brightness (0.0 to 1.0)
+  property real glowScatter: 0.22         // Randomness of the lit tiles (0 ordered, 1 pure random)
+  property bool glowDrift: true            // Ambient pool wandering the screen, blooming the mark
   property bool glowUseTheme: true         // Dynamically tracks brightened Omarchy theme accent color
   property color customGlowColor: "#ffffff"
   readonly property color brightThemeAccent: Qt.lighter(Color.accent, 1.45)
   property color glowColor: glowUseTheme ? brightThemeAccent : customGlowColor
-  property bool glowBorder: true           // Subtle border highlight around glowing tiles
-  property color glowBorderColor: glowUseTheme ? brightThemeAccent : customGlowColor
   readonly property int glowRadiusMax: 10
-  readonly property int glowTrailPoolDivisor: 2
-  readonly property int glowTrailRadiusScale: 4
-  readonly property int glowMinPoolSize: 128
-  readonly property int glowPoolSize: Math.max(
-    glowMinPoolSize,
-    glowCellCount(glowRadius) * (glowTrail ? glowTrailPoolDivisor : 1)
-  )
-  readonly property real glowTrailDurationScale: Math.max(1, glowRadius / glowTrailRadiusScale)
-  readonly property int glowTrailDuration: glowTrail
-    ? Math.round(glowDuration * glowTrailDurationScale)
-    : 0
+  readonly property real glowDriftStrength: 0.55
 
   // Audio Visualizer Effect:
   // Spectrum bars or a fading tile heatmap along the bottom edge.
@@ -91,28 +81,15 @@ Item {
     return Util.fileUrl(path)
   }
 
-  function glowCellCount(radius) {
-    var r = Math.max(0, Math.floor(radius))
-    var limit = r + 0.5
-    var count = 0
-    for (var dx = -r; dx <= r; dx++) {
-      for (var dy = -r; dy <= r; dy++) {
-        if (dx * dx + dy * dy <= limit * limit) count++
-      }
-    }
-    return count
-  }
-
   function settingsSnapshot() {
     return {
-      version: 3,
+      version: 4,
       mosaic: mosaic, mosaicBlock: mosaicBlock,
       grid: grid, gridSize: gridSize, gridGap: gridGap,
       gridColor: String(gridColor), gridOpacity: gridOpacity,
       glow: glow, glowRadius: glowRadius, glowIntensity: glowIntensity,
-      glowDuration: glowDuration, glowTrail: glowTrail,
+      glowScatter: glowScatter, glowDrift: glowDrift,
       glowUseTheme: glowUseTheme, customGlowColor: String(customGlowColor),
-      glowBorder: glowBorder,
       visualizer: visualizer, visualizerVariant: visualizerVariant,
       visualizerOpacity: visualizerOpacity, visualizerMosaicRows: visualizerMosaicRows,
       visualizerHeight: visualizerHeight, visualizerWidth: visualizerWidth
@@ -155,11 +132,10 @@ Item {
       glow = boolval("glow", glow)
       glowRadius = Math.min(glowRadiusMax, intval("glowRadius", glowRadius, 0))
       glowIntensity = unitval("glowIntensity", glowIntensity)
-      glowDuration = intval("glowDuration", glowDuration, 0)
-      glowTrail = boolval("glowTrail", glowTrail)
+      glowScatter = unitval("glowScatter", glowScatter)
+      glowDrift = boolval("glowDrift", glowDrift)
       glowUseTheme = boolval("glowUseTheme", glowUseTheme)
       customGlowColor = colorval("customGlowColor", customGlowColor)
-      glowBorder = boolval("glowBorder", glowBorder)
       visualizer = boolval("visualizer", visualizer)
       visualizerVariant = String(parsed.visualizerVariant || "").trim().toLowerCase() === "mosaic" ? "mosaic" : "bars"
       visualizerOpacity = unitval("visualizerOpacity", visualizerOpacity)
@@ -192,11 +168,10 @@ Item {
   onGlowChanged: scheduleSettingsSave()
   onGlowRadiusChanged: scheduleSettingsSave()
   onGlowIntensityChanged: scheduleSettingsSave()
-  onGlowDurationChanged: scheduleSettingsSave()
-  onGlowTrailChanged: scheduleSettingsSave()
+  onGlowScatterChanged: scheduleSettingsSave()
+  onGlowDriftChanged: scheduleSettingsSave()
   onGlowUseThemeChanged: scheduleSettingsSave()
   onCustomGlowColorChanged: scheduleSettingsSave()
-  onGlowBorderChanged: scheduleSettingsSave()
   // Cava follows the knob, not just the IPC entry points: the bar widget
   // flips `visualizer` directly, and loadSettings still arms cava itself
   // while settingsLoaded is false.
@@ -382,7 +357,6 @@ Item {
 
     function glowStatus(): string {
       return (root.glow ? "true" : "false") + " " + root.glowIntensity
-        + " " + root.glowDuration + " " + (root.glowTrail ? "true" : "false")
         + " " + root.glowColor + " " + root.glowRadius + " " + (root.glowUseTheme ? "theme" : "custom")
     }
 
@@ -400,13 +374,17 @@ Item {
       glowIntensity(value)
     }
 
-    function glowDuration(value: string): void {
-      var n = parseInt(value)
-      if (n >= 0) root.glowDuration = n
+    function glowScatter(value: string): void {
+      var v = Number(value)
+      if (isFinite(v)) root.glowScatter = Math.max(0, Math.min(1, v))
     }
 
-    function glowTrail(value: string): void {
-      root.glowTrail = value === "true"
+    function glowScatterStatus(): string {
+      return String(root.glowScatter) + " " + (root.glowDrift ? "drift" : "still")
+    }
+
+    function glowDrift(value: string): void {
+      root.glowDrift = value === "true"
     }
 
     function glowColor(value: string): void {
@@ -420,10 +398,6 @@ Item {
         root.glowUseTheme = false
         root.customGlowColor = s
       }
-    }
-
-    function glowBorder(value: string): void {
-      root.glowBorder = value === "true"
     }
 
     function burst(col: string, row: string): void {
@@ -791,349 +765,30 @@ Item {
         }
       }
 
-      // Cursor-hover tile glow layer
-      Item {
-        id: glowLayer
+      // Cursor-hover tile glow: the pool dithered into scattered tiles, with
+      // the click stamp of the Omarchy mark. See PixelGlow.qml.
+      PixelGlow {
+        id: pixelGlow
         anchors.fill: parent
         visible: root.glow
+        active: root.glow
 
-        property var activeTiles: ({})
-        readonly property int poolSize: root.glowPoolSize
+        cell: root.gridSize
+        gap: root.gridGap
+        radius: root.glowRadius
+        intensity: root.glowIntensity
+        scatter: root.glowScatter
+        drift: root.glowDrift ? root.glowDriftStrength : 0
 
-        Repeater {
-          id: glowPool
-          model: glowLayer.poolSize
-
-          Rectangle {
-            id: glowTile
-            property string tileKey: ""
-            property int currentGeneration: 0
-            property int trailQueueGeneration: -1
-            property int trailQueueId: -1
-            property bool queuedForTrail: false
-            property bool transientFlash: false
-
-            width: Math.max(0, root.gridSize - root.gridGap)
-            height: Math.max(0, root.gridSize - root.gridGap)
-            color: root.glowColor
-            opacity: 0.0
-
-            border.width: root.glowBorder ? 1 : 0
-            border.color: root.glowBorderColor
-
-            NumberAnimation {
-              id: tileFadeAnim
-              target: glowTile
-              property: "opacity"
-              duration: glowTile.transientFlash ? root.glowDuration : root.glowTrailDuration
-              easing.type: Easing.OutQuad
-              onFinished: {
-                if (glowTile.currentGeneration !== glowController.footprintGeneration) {
-                  if (glowTile.tileKey && glowLayer.activeTiles[glowTile.tileKey] === glowTile) {
-                    delete glowLayer.activeTiles[glowTile.tileKey]
-                  }
-                  glowTile.tileKey = ""
-                  if (!glowTile.queuedForTrail) glowController.freeTiles.push(glowTile)
-                }
-              }
-            }
-
-            function activate(tx, ty, targetOpacity, instant) {
-              x = tx
-              y = ty
-              tileFadeAnim.stop()
-              if (instant) {
-                opacity = targetOpacity
-              } else {
-                tileFadeAnim.from = targetOpacity
-                tileFadeAnim.to = 0.0
-                tileFadeAnim.restart()
-              }
-            }
-
-            function deactivate() {
-              tileFadeAnim.stop()
-              opacity = 0.0
-              if (tileKey && glowLayer.activeTiles[tileKey] === glowTile) {
-                delete glowLayer.activeTiles[tileKey]
-              }
-              tileKey = ""
-              currentGeneration = -1
-              trailQueueGeneration = -1
-              queuedForTrail = false
-              transientFlash = false
-            }
-          }
-        }
+        // The theme accent, walked from a dim floor to a bright lip so a tile
+        // reads as lit rather than pasted on.
+        inkDim: Qt.darker(root.glowColor, 2.3)
+        inkMid: Qt.darker(root.glowColor, 1.55)
+        inkLit: root.glowColor
+        inkHover: Qt.lighter(root.glowColor, 1.2)
+        inkCrest: Qt.lighter(root.glowColor, 1.45)
       }
 
-      // Click burst with animated glowing Omarchy mosaic tiles emerging from cursor
-      Item {
-        id: burstLayer
-        anchors.fill: parent
-        visible: root.glow
-
-        // Precomputed 95 tiles of the 15x15 pixel-art Omarchy logo,
-        // sorted radially from closest to cursor (distance 5.0) to furthest (distance 9.9).
-        // x, y: grid coordinates (0..14)
-        // n: normalized distance from closest (0.0) to furthest (1.0)
-        // f: radial cosine falloff curve (1.0 at center, decaying to 0.0 at edge)
-        readonly property var logoTiles: [
-          {x:7,y:2,n:0.000,f:1.000},
-          {x:2,y:7,n:0.000,f:1.000},
-          {x:12,y:7,n:0.000,f:1.000},
-          {x:7,y:12,n:0.000,f:1.000},
-          {x:6,y:2,n:0.020,f:1.000},
-          {x:2,y:6,n:0.020,f:1.000},
-          {x:12,y:6,n:0.020,f:1.000},
-          {x:2,y:8,n:0.020,f:1.000},
-          {x:12,y:8,n:0.020,f:1.000},
-          {x:6,y:12,n:0.020,f:1.000},
-          {x:5,y:2,n:0.079,f:0.992},
-          {x:2,y:5,n:0.079,f:0.992},
-          {x:12,y:5,n:0.079,f:0.992},
-          {x:2,y:9,n:0.079,f:0.992},
-          {x:12,y:9,n:0.079,f:0.992},
-          {x:5,y:12,n:0.079,f:0.992},
-          {x:7,y:1,n:0.204,f:0.950},
-          {x:1,y:7,n:0.204,f:0.950},
-          {x:7,y:13,n:0.204,f:0.950},
-          {x:4,y:2,n:0.170,f:0.965},
-          {x:2,y:4,n:0.170,f:0.965},
-          {x:12,y:4,n:0.170,f:0.965},
-          {x:2,y:10,n:0.170,f:0.965},
-          {x:12,y:10,n:0.170,f:0.965},
-          {x:4,y:12,n:0.170,f:0.965},
-          {x:3,y:2,n:0.288,f:0.901},
-          {x:11,y:2,n:0.288,f:0.901},
-          {x:2,y:3,n:0.288,f:0.901},
-          {x:12,y:3,n:0.288,f:0.901},
-          {x:2,y:11,n:0.288,f:0.901},
-          {x:12,y:11,n:0.288,f:0.901},
-          {x:3,y:12,n:0.288,f:0.901},
-          {x:8,y:12,n:0.288,f:0.901},
-          {x:11,y:12,n:0.288,f:0.901},
-          {x:8,y:0,n:0.425,f:0.796},
-          {x:6,y:0,n:0.425,f:0.796},
-          {x:7,y:0,n:0.408,f:0.811},
-          {x:0,y:7,n:0.408,f:0.811},
-          {x:14,y:7,n:0.408,f:0.811},
-          {x:7,y:14,n:0.408,f:0.811},
-          {x:9,y:12,n:0.425,f:0.796},
-          {x:0,y:6,n:0.425,f:0.796},
-          {x:14,y:6,n:0.425,f:0.796},
-          {x:0,y:8,n:0.425,f:0.796},
-          {x:14,y:8,n:0.425,f:0.796},
-          {x:6,y:14,n:0.425,f:0.796},
-          {x:2,y:2,n:0.422,f:0.798},
-          {x:12,y:2,n:0.422,f:0.798},
-          {x:2,y:12,n:0.422,f:0.798},
-          {x:12,y:12,n:0.422,f:0.798},
-          {x:5,y:0,n:0.465,f:0.761},
-          {x:9,y:0,n:0.465,f:0.761},
-          {x:0,y:5,n:0.465,f:0.761},
-          {x:14,y:5,n:0.465,f:0.761},
-          {x:0,y:9,n:0.465,f:0.761},
-          {x:14,y:9,n:0.465,f:0.761},
-          {x:5,y:14,n:0.465,f:0.761},
-          {x:9,y:14,n:0.465,f:0.761},
-          {x:10,y:12,n:0.572,f:0.626},
-          {x:4,y:0,n:0.531,f:0.681},
-          {x:10,y:0,n:0.531,f:0.681},
-          {x:0,y:4,n:0.531,f:0.681},
-          {x:14,y:4,n:0.531,f:0.681},
-          {x:0,y:10,n:0.531,f:0.681},
-          {x:14,y:10,n:0.531,f:0.681},
-          {x:4,y:14,n:0.531,f:0.681},
-          {x:10,y:14,n:0.531,f:0.681},
-          {x:3,y:0,n:0.620,f:0.559},
-          {x:11,y:0,n:0.620,f:0.559},
-          {x:0,y:3,n:0.620,f:0.559},
-          {x:14,y:3,n:0.620,f:0.559},
-          {x:0,y:11,n:0.620,f:0.559},
-          {x:14,y:11,n:0.620,f:0.559},
-          {x:3,y:14,n:0.620,f:0.559},
-          {x:11,y:14,n:0.620,f:0.559},
-          {x:2,y:0,n:0.724,f:0.419},
-          {x:12,y:0,n:0.724,f:0.419},
-          {x:0,y:2,n:0.724,f:0.419},
-          {x:14,y:2,n:0.724,f:0.419},
-          {x:0,y:12,n:0.724,f:0.419},
-          {x:14,y:12,n:0.724,f:0.419},
-          {x:2,y:14,n:0.724,f:0.419},
-          {x:12,y:14,n:0.724,f:0.419},
-          {x:1,y:0,n:0.838,f:0.252},
-          {x:13,y:0,n:0.838,f:0.252},
-          {x:0,y:1,n:0.861,f:0.216},
-          {x:14,y:1,n:0.861,f:0.216},
-          {x:0,y:13,n:0.861,f:0.216},
-          {x:14,y:13,n:0.861,f:0.216},
-          {x:1,y:14,n:0.861,f:0.216},
-          {x:13,y:14,n:0.861,f:0.216},
-          {x:0,y:0,n:1.000,f:0.000},
-          {x:14,y:0,n:1.000,f:0.000},
-          {x:0,y:14,n:1.000,f:0.000},
-          {x:14,y:14,n:1.000,f:0.000}
-        ]
-
-        Repeater {
-          id: burstPool
-          model: 6
-
-          Item {
-            id: burstItem
-            // Physical radius in grid units respecting root.glowRadius
-            readonly property int r: Math.max(1, root.glowRadius)
-            width: (r * 2 + 1) * root.gridSize
-            height: width
-            visible: opacity > 0.001
-            opacity: 0.0
-
-            readonly property real cellSpan: width / 15.0
-            readonly property real tileGap: Math.max(1, root.gridGap)
-            readonly property real tileSize: Math.max(2, cellSpan - tileGap)
-            // Outward wave travel time across the glow radius
-            readonly property int waveTravelTime: Math.round(100 + r * 30)
-
-            signal triggerBurst()
-
-            layer.enabled: true
-            layer.effect: MultiEffect {
-              shadowEnabled: true
-              shadowColor: "#000000"
-              shadowBlur: 0.4
-              shadowOpacity: 0.55
-            }
-
-            ParallelAnimation {
-              id: burstAnim
-
-              NumberAnimation {
-                target: burstItem
-                property: "scale"
-                from: 0.75
-                to: 1.3
-                duration: 650
-                easing.type: Easing.OutQuad
-              }
-
-              SequentialAnimation {
-                NumberAnimation {
-                  target: burstItem
-                  property: "opacity"
-                  from: 1.0
-                  to: 1.0
-                  duration: 150
-                }
-                NumberAnimation {
-                  target: burstItem
-                  property: "opacity"
-                  from: 1.0
-                  to: 0.0
-                  duration: Math.max(350, root.glowDuration + 100)
-                  easing.type: Easing.OutQuad
-                }
-              }
-            }
-
-            Repeater {
-              model: burstLayer.logoTiles
-
-              Rectangle {
-                id: tile
-                x: Math.round(modelData.x * burstItem.cellSpan + (burstItem.cellSpan - burstItem.tileSize) / 2)
-                y: Math.round(modelData.y * burstItem.cellSpan + (burstItem.cellSpan - burstItem.tileSize) / 2)
-                width: Math.round(burstItem.tileSize)
-                height: Math.round(burstItem.tileSize)
-                transformOrigin: Item.Center
-
-                color: root.glowColor
-                border.width: root.glowBorder ? 1 : 0
-                border.color: root.glowBorderColor
-
-                scale: 0.0
-                opacity: 0.0
-
-                // Closest tiles to cursor glow brightest; outer tiles respect radial falloff
-                readonly property real peakOpacity: Math.min(1.0, 0.45 + 0.55 * modelData.f)
-                // Stagger delay from closest to furthest
-                readonly property int tileDelay: Math.round(modelData.n * burstItem.waveTravelTime)
-
-                SequentialAnimation {
-                  id: tileAnim
-
-                  PauseAnimation { duration: tile.tileDelay }
-
-                  ParallelAnimation {
-                    // Tile scales up dynamically with overshoot bounce
-                    NumberAnimation {
-                      target: tile
-                      property: "scale"
-                      from: 0.15
-                      to: 1.0
-                      duration: 220
-                      easing.type: Easing.OutBack
-                      easing.overshoot: 1.25
-                    }
-
-                    SequentialAnimation {
-                      // Immediate burst glow
-                      NumberAnimation {
-                        target: tile
-                        property: "opacity"
-                        from: 0.0
-                        to: tile.peakOpacity
-                        duration: 45
-                      }
-                      // Brief peak hold
-                      NumberAnimation {
-                        target: tile
-                        property: "opacity"
-                        from: tile.peakOpacity
-                        to: tile.peakOpacity
-                        duration: 55
-                      }
-                      // Smooth fade out respecting root.glowDuration
-                      NumberAnimation {
-                        target: tile
-                        property: "opacity"
-                        from: tile.peakOpacity
-                        to: 0.0
-                        duration: Math.max(250, root.glowDuration)
-                        easing.type: Easing.OutQuad
-                      }
-                    }
-                  }
-                }
-
-                Connections {
-                  target: burstItem
-                  function onTriggerBurst() {
-                    tileAnim.restart()
-                  }
-                }
-              }
-            }
-
-            function trigger(col, row) {
-              x = (col + 0.5) * root.gridSize - width / 2
-              y = (row + 0.5) * root.gridSize - height / 2
-              transformOrigin = Item.Center
-              burstAnim.restart()
-              triggerBurst()
-            }
-          }
-        }
-
-        property int burstIndex: 0
-        function spawn(col, row) {
-          var item = burstPool.itemAt(burstIndex)
-          if (item) {
-            item.trigger(col, row)
-            burstIndex = (burstIndex + 1) % 6
-          }
-        }
-      }
       // 4. Grid overlay lines drawn over the tiles
       Item {
         id: gridLayer
@@ -1199,243 +854,10 @@ Item {
           panel.maybeStartReveal()
         }
         function onRequestBurst(col, row) {
-          burstLayer.spawn(col, row)
+          pixelGlow.stamp((col + 0.5) * root.gridSize, (row + 0.5) * root.gridSize, 0.2)
         }
         function onRequestGlowHover(x, y) {
-          glowController.onPointerMoved(x, y)
-        }
-      }
-
-      // Glow controller manages pool cycling and radial tile mapping
-      Item {
-        id: glowController
-
-        property int footprintGeneration: 0
-        property var currentTiles: []
-        property var previousCurrentTiles: []
-        property var trailQueue: []
-        property int trailQueueCursor: 0
-        property int trailDepartureGeneration: 0
-        property var freeTiles: []
-        property bool freeTilesInitialized: false
-
-        function initializeFreeTiles() {
-          if (glowController.freeTilesInitialized) return
-          var free = []
-          for (var i = 0; i < glowLayer.poolSize; i++) {
-            var tile = glowPool.itemAt(i)
-            if (tile) {
-              tile.trailQueueId = i
-              if (!tile.tileKey) free.push(tile)
-            }
-          }
-          glowController.freeTiles = free
-          glowController.freeTilesInitialized = true
-        }
-
-        function compactTrailQueue() {
-          var seen = {}
-          var compacted = []
-          for (var i = glowController.trailQueue.length - 1; i >= 0; i--) {
-            var entry = glowController.trailQueue[i]
-            var id = entry.tile.trailQueueId
-            if (seen[id] === true) continue
-            seen[id] = true
-            if (entry.generation === entry.tile.trailQueueGeneration) compacted.push(entry)
-          }
-          compacted.reverse()
-          glowController.trailQueue = compacted
-          glowController.trailQueueCursor = 0
-        }
-
-        function enqueueTrailTile(tile) {
-          if (!tile) return
-          var generation = ++glowController.trailDepartureGeneration
-          tile.trailQueueGeneration = generation
-          tile.queuedForTrail = true
-          glowController.trailQueue.push({ tile: tile, generation: generation })
-          if (glowController.trailQueue.length > glowLayer.poolSize * 2) {
-            glowController.compactTrailQueue()
-          }
-        }
-
-        function acquireTrailTile() {
-          glowController.initializeFreeTiles()
-          var delegate = glowController.freeTiles.pop()
-          if (delegate) return delegate
-
-          while (glowController.trailQueueCursor < glowController.trailQueue.length) {
-            var entry = glowController.trailQueue[glowController.trailQueueCursor]
-            glowController.trailQueueCursor++
-            var oldest = entry.tile
-            if (entry.generation !== oldest.trailQueueGeneration) continue
-            oldest.queuedForTrail = false
-            oldest.trailQueueGeneration = -1
-            if (oldest.currentGeneration === glowController.footprintGeneration) continue
-            if (oldest.tileKey && glowLayer.activeTiles[oldest.tileKey] === oldest) {
-              delete glowLayer.activeTiles[oldest.tileKey]
-            }
-            oldest.tileKey = ""
-            if (glowController.trailQueueCursor > 256
-                && glowController.trailQueueCursor * 2 >= glowController.trailQueue.length) {
-              glowController.trailQueue = glowController.trailQueue.slice(glowController.trailQueueCursor)
-              glowController.trailQueueCursor = 0
-            }
-            return oldest
-          }
-          return null
-        }
-
-        function beginFootprint() {
-          glowController.footprintGeneration++
-          glowController.currentTiles.length = 0
-        }
-
-        function finishFootprint() {
-          var current = glowController.currentTiles
-          var previous = glowController.previousCurrentTiles
-          for (var i = 0; i < previous.length; i++) {
-            var tile = previous[i]
-            if (tile && tile.currentGeneration !== glowController.footprintGeneration) {
-              glowController.enqueueTrailTile(tile)
-            }
-          }
-          glowController.previousCurrentTiles = current
-          previous.length = 0
-          glowController.currentTiles = previous
-        }
-
-        function reset() {
-          for (var i = 0; i < glowLayer.poolSize; i++) {
-            var tile = glowPool.itemAt(i)
-            if (tile) tile.deactivate()
-          }
-          glowLayer.activeTiles = ({})
-          glowController.footprintGeneration++
-          glowController.currentTiles.length = 0
-          glowController.previousCurrentTiles.length = 0
-          glowController.trailQueue = []
-          glowController.trailQueueCursor = 0
-          glowController.trailDepartureGeneration = 0
-          glowController.freeTiles = []
-          glowController.freeTilesInitialized = false
-        }
-
-        Connections {
-          target: glowLayer
-          function onPoolSizeChanged() {
-            glowController.reset()
-          }
-        }
-
-        function assignTile(col, row, targetOpacity, instant, transient) {
-          var tx = col * root.gridSize + root.gridGap
-          var ty = row * root.gridSize + root.gridGap
-          var key = col + "_" + row
-
-          var delegate = glowLayer.activeTiles[key]
-          if (delegate) {
-            delegate.transientFlash = transient
-            delegate.activate(tx, ty, targetOpacity, instant)
-            return delegate
-          }
-
-          delegate = glowController.acquireTrailTile()
-          if (!delegate) return null
-          if (delegate.tileKey && glowLayer.activeTiles[delegate.tileKey] === delegate) {
-            delete glowLayer.activeTiles[delegate.tileKey]
-          }
-          delegate.tileKey = key
-          glowLayer.activeTiles[key] = delegate
-          delegate.transientFlash = transient
-          delegate.activate(tx, ty, targetOpacity, instant)
-          return delegate
-        }
-
-        function triggerTile(col, row, targetOpacity, instant) {
-          var delegate = glowController.assignTile(col, row, targetOpacity, instant, false)
-          if (delegate && root.glowTrail) {
-            delegate.currentGeneration = glowController.footprintGeneration
-            glowController.currentTiles.push(delegate)
-          }
-        }
-
-        function triggerTransientTile(col, row, targetOpacity, instant) {
-          glowController.assignTile(col, row, targetOpacity, instant, true)
-        }
-
-        function onPointerMoved(mx, my) {
-          if (!root.glow) return
-
-          if (!root.glowTrail) reset()
-          else glowController.beginFootprint()
-
-          var centerCol = Math.floor(mx / root.gridSize)
-          var centerRow = Math.floor(my / root.gridSize)
-          var r = Math.max(0, root.glowRadius)
-
-          if (r === 0) {
-            if (centerCol >= 0 && centerRow >= 0) {
-              triggerTile(centerCol, centerRow, root.glowIntensity, !root.glowTrail)
-            }
-            if (root.glowTrail) glowController.finishFootprint()
-            return
-          }
-
-          var maxDist = (r + 0.5) * root.gridSize
-
-          for (var dc = -r; dc <= r; dc++) {
-            for (var dr = -r; dr <= r; dr++) {
-              var c = centerCol + dc
-              var rw = centerRow + dr
-              if (c < 0 || rw < 0) continue
-
-              var tileCenterX = c * root.gridSize + root.gridSize / 2
-              var tileCenterY = rw * root.gridSize + root.gridSize / 2
-
-              var dist = Math.hypot(mx - tileCenterX, my - tileCenterY)
-              if (dist > maxDist) continue
-
-              var norm = dist / maxDist
-              var falloff = Math.cos(norm * (Math.PI / 2))
-              var targetOpacity = root.glowIntensity * falloff
-
-              if (targetOpacity < 0.02) continue
-
-              triggerTile(c, rw, targetOpacity, !root.glowTrail)
-            }
-          }
-          if (root.glowTrail) glowController.finishFootprint()
-        }
-
-        function onPointerClicked(mx, my) {
-          if (!root.glow) return
-          var centerCol = Math.floor(mx / root.gridSize)
-          var centerRow = Math.floor(my / root.gridSize)
-          var r = Math.max(1, root.glowRadius)
-
-          // Clicked tile flashes to full peak brightness
-          glowController.triggerTransientTile(centerCol, centerRow, 1.0, false)
-
-          // Neighboring tiles flash with radial burst
-          var maxDist = (r + 0.5) * root.gridSize
-          for (var dc = -r; dc <= r; dc++) {
-            for (var dr = -r; dr <= r; dr++) {
-              if (dc === 0 && dr === 0) continue
-              var c = centerCol + dc
-              var rw = centerRow + dr
-              if (c < 0 || rw < 0) continue
-
-              var tileCenterX = c * root.gridSize + root.gridSize / 2
-              var tileCenterY = rw * root.gridSize + root.gridSize / 2
-              var dist = Math.hypot(mx - tileCenterX, my - tileCenterY)
-              if (dist > maxDist) continue
-
-              var norm = dist / maxDist
-              var falloff = Math.cos(norm * (Math.PI / 2))
-              glowController.triggerTransientTile(c, rw, Math.min(1.0, root.glowIntensity * 1.5 * falloff), false)
-            }
-          }
+          pixelGlow.pointerTo(x, y)
         }
       }
 
@@ -1445,22 +867,27 @@ Item {
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton | Qt.RightButton
 
+        // Seconds the press has been held, read on release: a quick click
+        // leaves a small mark, a long hold blooms a wide one.
+        property real pressedAt: 0
+
         onPositionChanged: function(mouse) {
-          glowController.onPointerMoved(mouse.x, mouse.y)
+          pixelGlow.pointerTo(mouse.x, mouse.y)
         }
 
         onExited: {
-          glowController.reset()
+          pixelGlow.release()
+        }
+
+        onPressed: function(mouse) {
+          if (mouse.button === Qt.LeftButton) pressedAt = pixelGlow.clock
         }
 
         onClicked: function(mouse) {
           if (!root.glow) return
-          if (mouse.button === Qt.LeftButton) {
-            var col = Math.floor(mouse.x / root.gridSize)
-            var row = Math.floor(mouse.y / root.gridSize)
-            glowController.onPointerClicked(mouse.x, mouse.y)
-            burstLayer.spawn(col, row)
-          }
+          if (mouse.button !== Qt.LeftButton) return
+          var charge = (pixelGlow.clock - pressedAt) / 1.1
+          pixelGlow.stamp(mouse.x, mouse.y, charge)
         }
 
         onDoubleClicked: function(mouse) {
